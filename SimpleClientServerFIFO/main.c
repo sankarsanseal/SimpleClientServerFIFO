@@ -16,10 +16,19 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include "../SimpleClient/SimpleClient/msg_struct.h"
 char path_to_fifo[1024];
 int server_fifo;
 int dummy;
 struct stat test;
+MSGSVR empty_msg_to_server;
+
+void initialize_empty_msgsvr()
+{
+    empty_msg_to_server.clientid=0;
+    empty_msg_to_server.instruct_code=0;
+    empty_msg_to_server.msg[0]='\0';
+}
 
 
 void cleanup(int signaltype)
@@ -33,9 +42,14 @@ void cleanup(int signaltype)
 
 void readfromfifo()
 {
+    initialize_empty_msgsvr();
 
-    while(1)
-        sleep(5);
+    while(read(server_fifo,&empty_msg_to_server,sizeof(empty_msg_to_server)))
+    {
+        fprintf(stdout,"Instruction received from client : %d",empty_msg_to_server.instruct_code);
+        fprintf(stdout, "Client ID : %d", empty_msg_to_server.clientid);
+        fprintf(stdout,"Message send %s",empty_msg_to_server.msg);
+    }
 }
 
 

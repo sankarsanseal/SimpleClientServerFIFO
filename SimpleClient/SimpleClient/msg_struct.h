@@ -12,7 +12,9 @@
 typedef struct msg_to_svr
 {
     int instruct_code;
+    pid_t client_pid;
     char msg[512];
-};
+} MSGSVR;
 
 #endif /* msg_struct_h */
+
