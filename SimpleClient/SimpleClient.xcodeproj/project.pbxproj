@@ -7,21 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		6AF58C301D446AC7005999DB /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 6AF58C2F1D446AC7005999DB /* main.c */; };
+		6A173FAF1D44864A00BFB6B6 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 6A173FAE1D44864A00BFB6B6 /* main.c */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		6A173FB91D44864A00BFB6B6 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 6A173FB51D44864A00BFB6B6 /* SimpleClient.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = 6A173FAB1D44864A00BFB6B6;
-			remoteInfo = SimpleClient;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXCopyFilesBuildPhase section */
-		6AF58C2A1D446AC7005999DB /* CopyFiles */ = {
+		6A173FA91D44864A00BFB6B6 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = /usr/share/man/man1/;
@@ -33,13 +23,13 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		6A173FB51D44864A00BFB6B6 /* SimpleClient.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = SimpleClient.xcodeproj; path = SimpleClient/SimpleClient.xcodeproj; sourceTree = "<group>"; };
-		6AF58C2C1D446AC7005999DB /* SimpleClientServerFIFO */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = SimpleClientServerFIFO; sourceTree = BUILT_PRODUCTS_DIR; };
-		6AF58C2F1D446AC7005999DB /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		6A173FAB1D44864A00BFB6B6 /* SimpleClient */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = SimpleClient; sourceTree = BUILT_PRODUCTS_DIR; };
+		6A173FAE1D44864A00BFB6B6 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		6A173FBB1D44868C00BFB6B6 /* msg_struct.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = msg_struct.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		6AF58C291D446AC7005999DB /* Frameworks */ = {
+		6A173FA81D44864A00BFB6B6 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -49,119 +39,95 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		6A173FB61D44864A00BFB6B6 /* Products */ = {
+		6A173FA21D44864A00BFB6B6 = {
 			isa = PBXGroup;
 			children = (
-				6A173FBA1D44864A00BFB6B6 /* SimpleClient */,
+				6A173FAD1D44864A00BFB6B6 /* SimpleClient */,
+				6A173FAC1D44864A00BFB6B6 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6A173FAC1D44864A00BFB6B6 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				6A173FAB1D44864A00BFB6B6 /* SimpleClient */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		6AF58C231D446AC7005999DB = {
+		6A173FAD1D44864A00BFB6B6 /* SimpleClient */ = {
 			isa = PBXGroup;
 			children = (
-				6A173FB51D44864A00BFB6B6 /* SimpleClient.xcodeproj */,
-				6AF58C2E1D446AC7005999DB /* SimpleClientServerFIFO */,
-				6AF58C2D1D446AC7005999DB /* Products */,
+				6A173FAE1D44864A00BFB6B6 /* main.c */,
+				6A173FBB1D44868C00BFB6B6 /* msg_struct.h */,
 			);
-			sourceTree = "<group>";
-		};
-		6AF58C2D1D446AC7005999DB /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				6AF58C2C1D446AC7005999DB /* SimpleClientServerFIFO */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		6AF58C2E1D446AC7005999DB /* SimpleClientServerFIFO */ = {
-			isa = PBXGroup;
-			children = (
-				6AF58C2F1D446AC7005999DB /* main.c */,
-			);
-			path = SimpleClientServerFIFO;
+			path = SimpleClient;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		6AF58C2B1D446AC7005999DB /* SimpleClientServerFIFO */ = {
+		6A173FAA1D44864A00BFB6B6 /* SimpleClient */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 6AF58C331D446AC7005999DB /* Build configuration list for PBXNativeTarget "SimpleClientServerFIFO" */;
+			buildConfigurationList = 6A173FB21D44864A00BFB6B6 /* Build configuration list for PBXNativeTarget "SimpleClient" */;
 			buildPhases = (
-				6AF58C281D446AC7005999DB /* Sources */,
-				6AF58C291D446AC7005999DB /* Frameworks */,
-				6AF58C2A1D446AC7005999DB /* CopyFiles */,
+				6A173FA71D44864A00BFB6B6 /* Sources */,
+				6A173FA81D44864A00BFB6B6 /* Frameworks */,
+				6A173FA91D44864A00BFB6B6 /* CopyFiles */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = SimpleClientServerFIFO;
-			productName = SimpleClientServerFIFO;
-			productReference = 6AF58C2C1D446AC7005999DB /* SimpleClientServerFIFO */;
+			name = SimpleClient;
+			productName = SimpleClient;
+			productReference = 6A173FAB1D44864A00BFB6B6 /* SimpleClient */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		6AF58C241D446AC7005999DB /* Project object */ = {
+		6A173FA31D44864A00BFB6B6 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				LastUpgradeCheck = 0730;
 				ORGANIZATIONNAME = "Sankarsan Seal";
 				TargetAttributes = {
-					6AF58C2B1D446AC7005999DB = {
+					6A173FAA1D44864A00BFB6B6 = {
 						CreatedOnToolsVersion = 7.3.1;
 					};
 				};
 			};
-			buildConfigurationList = 6AF58C271D446AC7005999DB /* Build configuration list for PBXProject "SimpleClientServerFIFO" */;
+			buildConfigurationList = 6A173FA61D44864A00BFB6B6 /* Build configuration list for PBXProject "SimpleClient" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 			);
-			mainGroup = 6AF58C231D446AC7005999DB;
-			productRefGroup = 6AF58C2D1D446AC7005999DB /* Products */;
+			mainGroup = 6A173FA21D44864A00BFB6B6;
+			productRefGroup = 6A173FAC1D44864A00BFB6B6 /* Products */;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = 6A173FB61D44864A00BFB6B6 /* Products */;
-					ProjectRef = 6A173FB51D44864A00BFB6B6 /* SimpleClient.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
-				6AF58C2B1D446AC7005999DB /* SimpleClientServerFIFO */,
+				6A173FAA1D44864A00BFB6B6 /* SimpleClient */,
 			);
 		};
 /* End PBXProject section */
 
-/* Begin PBXReferenceProxy section */
-		6A173FBA1D44864A00BFB6B6 /* SimpleClient */ = {
-			isa = PBXReferenceProxy;
-			fileType = "compiled.mach-o.executable";
-			path = SimpleClient;
-			remoteRef = 6A173FB91D44864A00BFB6B6 /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-/* End PBXReferenceProxy section */
-
 /* Begin PBXSourcesBuildPhase section */
-		6AF58C281D446AC7005999DB /* Sources */ = {
+		6A173FA71D44864A00BFB6B6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6AF58C301D446AC7005999DB /* main.c in Sources */,
+				6A173FAF1D44864A00BFB6B6 /* main.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		6AF58C311D446AC7005999DB /* Debug */ = {
+		6A173FB01D44864A00BFB6B6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -205,7 +171,7 @@
 			};
 			name = Debug;
 		};
-		6AF58C321D446AC7005999DB /* Release */ = {
+		6A173FB11D44864A00BFB6B6 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -242,14 +208,14 @@
 			};
 			name = Release;
 		};
-		6AF58C341D446AC7005999DB /* Debug */ = {
+		6A173FB31D44864A00BFB6B6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
 		};
-		6AF58C351D446AC7005999DB /* Release */ = {
+		6A173FB41D44864A00BFB6B6 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -259,25 +225,24 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		6AF58C271D446AC7005999DB /* Build configuration list for PBXProject "SimpleClientServerFIFO" */ = {
+		6A173FA61D44864A00BFB6B6 /* Build configuration list for PBXProject "SimpleClient" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				6AF58C311D446AC7005999DB /* Debug */,
-				6AF58C321D446AC7005999DB /* Release */,
+				6A173FB01D44864A00BFB6B6 /* Debug */,
+				6A173FB11D44864A00BFB6B6 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		6AF58C331D446AC7005999DB /* Build configuration list for PBXNativeTarget "SimpleClientServerFIFO" */ = {
+		6A173FB21D44864A00BFB6B6 /* Build configuration list for PBXNativeTarget "SimpleClient" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				6AF58C341D446AC7005999DB /* Debug */,
-				6AF58C351D446AC7005999DB /* Release */,
+				6A173FB31D44864A00BFB6B6 /* Debug */,
+				6A173FB41D44864A00BFB6B6 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = 6AF58C241D446AC7005999DB /* Project object */;
+	rootObject = 6A173FA31D44864A00BFB6B6 /* Project object */;
 }
