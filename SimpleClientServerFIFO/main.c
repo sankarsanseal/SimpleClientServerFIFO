@@ -17,18 +17,42 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include "../SimpleClient/SimpleClient/msg_struct.h"
-char path_to_fifo[1024];
+char path_to_fifo[PATHLENGTH];
 int server_fifo;
 int dummy;
 struct stat test;
-MSGSVR empty_msg_to_server;
+pthread_t tid;
+MSGSVR * empty_msg_to_server;
 
-void initialize_empty_msgsvr()
+
+int share_var;
+
+MSGSVR * initialize_empty_msgsvr()
 {
-    empty_msg_to_server.clientid=0;
-    empty_msg_to_server.instruct_code=0;
-    empty_msg_to_server.msg[0]='\0';
+    MSGSVR * temp=NULL;
+    
+    if((temp=(MSGSVR *)malloc(sizeof(MSGSVR))))
+    {
+        temp->client_pid=0;
+        temp->instruct_code=0;
+        temp->msg[0]='\0';
+    }
+    
+    return temp;
 }
+
+MSGCLI * initialize_empty_msg_to_cli()
+{
+    MSGCLI * temp=NULL;
+    if((temp=(MSGCLI *)malloc(sizeof(MSGCLI))))
+    {
+    temp->error_code=0;
+    temp->msg[0]='\0';
+    }
+    
+    return temp;
+}
+
 
 
 void cleanup(int signaltype)
@@ -40,18 +64,137 @@ void cleanup(int signaltype)
     exit(0);
 }
 
+void * echo_userid(void * argv)
+{
+    MSGSVR * temp =(MSGSVR *) argv;
+    MSGCLI * empty_msg_from_svr_to_cli;
+    char * path_to_cli_fifo;
+    int cli_fifo;
+    
+    if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
+    {
+        sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
+    
+        cli_fifo=open(path_to_cli_fifo,O_WRONLY);
+            if(cli_fifo)
+    
+            {
+        
+                if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                {
+                    empty_msg_from_svr_to_cli->error_code=0;
+                    sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *present working directory:\n %s\n",temp->userid,temp->client_pid,temp->msg);
+                    write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
+                    free(empty_msg_from_svr_to_cli);
+                }
+
+            close(cli_fifo);
+            }
+    if(temp)
+        free(temp);
+
+    }
+    return NULL;
+    
+}
+
+void * present_wd_ls(void * argv)
+{
+    MSGSVR * temp =(MSGSVR *)argv;
+    MSGCLI * empty_msg_from_svr_to_cli;
+    char * path_to_cli_fifo;
+    int cli_fifo;
+
+    
+    if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
+    {
+        sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
+        
+        cli_fifo=open(path_to_cli_fifo,O_WRONLY);
+        if(cli_fifo)
+            
+        {
+            
+            if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+            {
+                empty_msg_from_svr_to_cli->error_code=0;
+                sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *present working directory:\n %s\n",temp->userid,temp->client_pid,temp->msg);
+               
+                write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
+                free(empty_msg_from_svr_to_cli);
+                
+                if(temp->sub_instruction==1)
+                {
+                
+                if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                empty_msg_from_svr_to_cli->error_code=1;
+                strcpy(empty_msg_from_svr_to_cli->msg,"No directory listing available.\n");
+                write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
+                free(empty_msg_from_svr_to_cli);
+                }
+                
+            }
+            close(cli_fifo);
+        }
+        if(temp)
+            free(temp);
+
+    }
+    return NULL;
+    
+}
+
+
+
+
 void readfromfifo()
 {
-    initialize_empty_msgsvr();
-
-    while(read(server_fifo,&empty_msg_to_server,sizeof(empty_msg_to_server)))
+    empty_msg_to_server=initialize_empty_msgsvr();
+    
+    if(empty_msg_to_server)
     {
-        fprintf(stdout,"Instruction received from client : %d",empty_msg_to_server.instruct_code);
-        fprintf(stdout, "Client ID : %d", empty_msg_to_server.clientid);
-        fprintf(stdout,"Message send %s",empty_msg_to_server.msg);
+    
+        while(read(server_fifo,empty_msg_to_server,sizeof(MSGSVR)))
+        {
+            
+        fprintf(stdout,"Instruction Code received from client : %d\n",empty_msg_to_server->instruct_code);
+        fprintf(stdout, "Client PID : %d\n", empty_msg_to_server->client_pid);
+        fprintf(stdout,"Message sent %s\n",empty_msg_to_server->msg);
+            switch(empty_msg_to_server->instruct_code)
+            {
+            
+                case 1: //echo userid and process id
+                    pthread_create(&tid,NULL,echo_userid, empty_msg_to_server);
+                    break;
+                case 2: //Listing present working directory
+                    pthread_create(&tid, NULL, present_wd_ls, empty_msg_to_server);
+                    break;
+                
+                    
+                    
+                    
+                
+            }
+            
+            if((empty_msg_to_server=initialize_empty_msgsvr()))
+                continue;
+            else
+            {
+                fprintf(stderr,"Problem with allocation memory\n");
+                cleanup(SIGINT);
+                break;
+            }
+            
+            
+        }
+    }
+    else
+    {
+        fprintf(stderr,"Problem with allocating new space for message.\n");
     }
 }
 
+//After successfully checking available  server FIFO  Server is started
 
 void start_server()
 {
@@ -64,8 +207,9 @@ void start_server()
     }
     else
     {
-        readfromfifo();
         fprintf(stdout,"Starting server...\n");
+
+        readfromfifo();
         
     }
 }
@@ -84,7 +228,7 @@ int main(int argc, const char * argv[]) {
 
         if(stat(path_to_fifo,&test)==0)
         {
-            printf("Path exists.\n");
+            printf("Given server path already exists.\n");
             switch(test.st_mode & S_IFMT)
             {
                 case S_IFDIR:
@@ -105,7 +249,7 @@ int main(int argc, const char * argv[]) {
             fprintf(stderr,"Something went wrong: %s\n",strerror(errno));
             fprintf(stdout,"Creating new FIFO with given path\n");
             
-            if(mkfifo(path_to_fifo,S_IRUSR|S_IRGRP|S_IWUSR|S_IROTH))
+            if(mkfifo(path_to_fifo,MKFIFO_FILE_MODE))
                 fprintf(stderr,"mkfifo error :%s\n",strerror(errno));
             else
             start_server();

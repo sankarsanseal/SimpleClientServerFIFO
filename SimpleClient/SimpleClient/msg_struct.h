@@ -8,13 +8,23 @@
 
 #ifndef msg_struct_h
 #define msg_struct_h
+#define MKFIFO_FILE_MODE (S_IRUSR|S_IRGRP|S_IWUSR|S_IWGRP|S_IROTH)
+#define PATHLENGTH 1024
 
 typedef struct msg_to_svr
 {
     int instruct_code;
+    int sub_instruction;
     pid_t client_pid;
-    char msg[512];
+    int userid;
+    char msg[PATHLENGTH];
 } MSGSVR;
+
+typedef struct msg_to_client
+{
+    int error_code;
+    char msg[PATHLENGTH];
+} MSGCLI;
 
 #endif /* msg_struct_h */
 
