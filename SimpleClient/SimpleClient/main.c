@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <ctype.h>
 
 #include "msg_struct.h"
 
@@ -56,6 +57,14 @@ void cleanup(int signaltype)
     exit(0);
 }
 
+char * first_non_whitespace(char * str)
+{
+    while(isspace(*str))
+        str++;
+    return str;
+}
+
+
 
 void read_msg_for_client( int prev, int next)
 {
@@ -88,7 +97,7 @@ void set_echo_user()
     {
         initialize_empty_msgsvr();
         fprintf(stdout,"Enter the user id:");
-        scanf("%d",&userid);
+        scanf("%d%*c",&userid);
         
         
         empty_msg_to_server.userid=userid;
@@ -130,7 +139,7 @@ void present_wd_ls_cli()
             
             fprintf(stdout,"Want to see whole list?\n 1.Yes \n 2.No\n");
             fprintf(stdout,"Enter the choice:");
-            scanf("%d",&c);
+            scanf("%d%*c",&c);
             
             if(c==1)
                 empty_msg_to_server.sub_instruction=1;
@@ -167,9 +176,23 @@ void change_dir_cli()
             empty_msg_to_server.client_pid=getpid();
             empty_msg_to_server.instruct_code=3;
             
-            fgets(path_to_new_dir,PATHLENGTH,stdin);
-            strcpy(temp_present_working_dir,present_working_dir);
-            strcat(temp_present_working_dir, path_to_new_dir);
+            printf("Enter the directory to which you like to change:\n");
+            scanf("%[^\n]%*c",path_to_new_dir);
+            
+            //sprintf(stdout,"%s\n",path_to_new_dir);
+            //sprintf(temp_present_working_dir,")
+            strcpy(temp_present_working_dir, first_non_whitespace(path_to_new_dir));
+            //fprintf(stdout,"temp_present %s",temp_present_working_dir);
+            
+            if(temp_present_working_dir[0]=='/')
+                ;
+            else
+            {
+                strcpy(path_to_new_dir,temp_present_working_dir);
+                
+                strcpy(temp_present_working_dir,present_working_dir);
+                strcat(temp_present_working_dir, path_to_new_dir);
+            }
             strcpy(empty_msg_to_server.msg,temp_present_working_dir);
             
             
@@ -208,7 +231,7 @@ void menu()
             fprintf(stdout,"3.Change directory.\n");
             fprintf(stdout,"0.Exit\n");
             fprintf(stdout,"Enter your choice:");
-            scanf("%d",&c);
+            scanf("%d%*c",&c);
             switch(c)
             {
                 case 1:
