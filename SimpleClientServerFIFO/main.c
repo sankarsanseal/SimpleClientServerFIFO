@@ -23,6 +23,7 @@ int dummy;
 struct stat test;
 pthread_t tid;
 MSGSVR * empty_msg_to_server;
+pthread_rwlock_t rwlock;
 
 
 int share_var;
@@ -59,6 +60,7 @@ void cleanup(int signaltype)
 {
     if(server_fifo)
     close(server_fifo);
+    pthread_rwlock_destroy(&rwlock);
     unlink(path_to_fifo);
     printf("\nExiting..\n");
     exit(0);
@@ -144,6 +146,51 @@ void * present_wd_ls(void * argv)
     
 }
 
+void * change_dir(void * argv)
+{
+    MSGSVR * temp =(MSGSVR *)argv;
+    MSGCLI * empty_msg_from_svr_to_cli;
+    char * path_to_cli_fifo;
+    int cli_fifo;
+    
+    
+    if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
+    {
+        sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
+        
+        cli_fifo=open(path_to_cli_fifo,O_WRONLY);
+        if(cli_fifo)
+            
+        {
+            if(!pthread_rwlock_wrlock(&rwlock))
+            {
+            
+                if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                {
+                    fprintf(stdout,"Waiting to update shared variable:");
+                    scanf("%d",&share_var);
+                empty_msg_from_svr_to_cli->error_code=0;
+                sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *present working directory:\n %s\n shared var value %d\n",temp->userid,temp->client_pid,temp->msg,share_var);
+                
+                write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
+                free(empty_msg_from_svr_to_cli);
+                
+                
+                }
+            pthread_rwlock_unlock(&rwlock);
+
+            }
+            else
+                fprintf(stdout,"Can not get write lock.\n");
+        close(cli_fifo);
+        }
+        if(temp)
+            free(temp);
+        
+    }
+    return NULL;
+    
+}
 
 
 
@@ -168,6 +215,9 @@ void readfromfifo()
                     break;
                 case 2: //Listing present working directory
                     pthread_create(&tid, NULL, present_wd_ls, empty_msg_to_server);
+                    break;
+                case 3:
+                    pthread_create(&tid,NULL,change_dir,empty_msg_to_server);
                     break;
                 
                     
@@ -208,6 +258,7 @@ void start_server()
     else
     {
         fprintf(stdout,"Starting server...\n");
+        pthread_rwlock_init(&rwlock,NULL);
 
         readfromfifo();
         

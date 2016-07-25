@@ -20,6 +20,8 @@
 char path_to_server[PATHLENGTH];
 char path_to_client[PATHLENGTH];
 char present_working_dir[PATHLENGTH];
+char temp_present_working_dir[PATHLENGTH];
+char path_to_new_dir[PATHLENGTH];
 struct stat testserver;
 struct stat testclient;
 int serverfifo;
@@ -69,6 +71,8 @@ void read_msg_for_client( int prev, int next)
         {
             fprintf(stdout,"Error code received from Server %d\n",empty_msg_to_client.error_code);
             fprintf(stdout,"Message from Server to Client: %s",empty_msg_to_client.msg);
+            if(empty_msg_to_client.error_code==0)
+                strcpy(present_working_dir,temp_present_working_dir);
 
         }
             if(next==0)
@@ -91,7 +95,8 @@ void set_echo_user()
         empty_msg_to_server.client_pid=getpid();
         empty_msg_to_server.instruct_code=1;
         strcpy(present_working_dir,"/");
-        strcpy(empty_msg_to_server.msg,present_working_dir);
+        strcpy(temp_present_working_dir,present_working_dir);
+        strcpy(empty_msg_to_server.msg,temp_present_working_dir);
         write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
         read_msg_for_client(0,0);
 
@@ -105,7 +110,7 @@ void set_echo_user()
 
 void present_wd_ls_cli()
 {
-    //SET the user id and echo the user id and root directory.
+    //Print the present working directory.
     
     int c;
     
@@ -120,7 +125,8 @@ void present_wd_ls_cli()
             empty_msg_to_server.client_pid=getpid();
             empty_msg_to_server.instruct_code=2;
 
-            strcpy(empty_msg_to_server.msg,present_working_dir);
+            strcpy(temp_present_working_dir,present_working_dir);
+            strcpy(empty_msg_to_server.msg,temp_present_working_dir);
             
             fprintf(stdout,"Want to see whole list?\n 1.Yes \n 2.No\n");
             fprintf(stdout,"Enter the choice:");
@@ -144,6 +150,41 @@ void present_wd_ls_cli()
     
     
 }
+
+void change_dir_cli()
+{
+    //SET new directory
+    
+    
+    if(serverfifo)
+    {
+        initialize_empty_msgsvr();
+        if(userid==0)
+            fprintf(stdout,"***Enter the userid first.\n");
+        else
+        {
+            empty_msg_to_server.userid=userid;
+            empty_msg_to_server.client_pid=getpid();
+            empty_msg_to_server.instruct_code=3;
+            
+            fgets(path_to_new_dir,PATHLENGTH,stdin);
+            strcpy(temp_present_working_dir,present_working_dir);
+            strcat(temp_present_working_dir, path_to_new_dir);
+            strcpy(empty_msg_to_server.msg,temp_present_working_dir);
+            
+            
+            write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
+            read_msg_for_client(0,0);
+        }
+        
+    }
+    else
+        fprintf(stderr,"Message to server is not send.\n");
+    
+    
+    
+}
+
 
 
 void menu()
@@ -175,6 +216,9 @@ void menu()
                     break;
                 case 2:
                     present_wd_ls_cli();
+                    break;
+                case 3:
+                    change_dir_cli();
                     break;
                     
                 case 0:
