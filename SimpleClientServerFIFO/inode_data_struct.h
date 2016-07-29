@@ -45,4 +45,11 @@ typedef struct dir_struct
     char name[32];
 } DIRS;
 
+typedef struct free_dir_entry_slot
+{
+    int i;
+    int j;
+    
+} DIRENTRY;
+
 #endif /* inode_data_struct_h */

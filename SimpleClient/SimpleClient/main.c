@@ -217,6 +217,57 @@ void change_dir_cli()
     
 }
 
+void make_dir_cli()
+{
+    if(serverfifo)
+    {
+        initialize_empty_msgsvr();
+        if(userid==0)
+            fprintf(stdout,"***Enter the userid first.\n");
+        else
+        {
+            empty_msg_to_server.userid=userid;
+            empty_msg_to_server.client_pid=getpid();
+            empty_msg_to_server.instruct_code=4;
+            
+            printf("Enter the name of directory which you like to create:\n");
+            scanf("%[^\n]%*c",path_to_new_dir);
+            
+            //sprintf(stdout,"%s\n",path_to_new_dir);
+            //sprintf(temp_present_working_dir,")
+            strcpy(temp_present_working_dir, first_non_whitespace(path_to_new_dir));
+            //fprintf(stdout,"temp_present %s",temp_present_working_dir);
+            
+            if(temp_present_working_dir[0]=='/')
+                ;
+            else
+            {
+                strcpy(path_to_new_dir,temp_present_working_dir);
+                
+                strcpy(temp_present_working_dir,present_working_dir);
+                strcat(temp_present_working_dir, path_to_new_dir);
+            
+            }
+            
+            strcpy(empty_msg_to_server.msg,temp_present_working_dir);
+
+            empty_msg_to_server.last_inode_used=last_inode_used;
+            empty_msg_to_server.sub_instruction=0;
+
+            
+            write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
+            read_msg_for_client();
+        }
+
+        
+    }
+    else
+    {
+        fprintf(stderr,"Message to server is not send.\n");
+
+    }
+}
+
 
 
 void menu()
@@ -238,7 +289,7 @@ void menu()
             fprintf(stdout,"1.Enter the user id and echo\n");
             fprintf(stdout,"2.Present directory and current list.\n");
             fprintf(stdout,"3.Change directory.\n");
-            fprintf(stdout,"4.Make Directory.\n")
+            fprintf(stdout,"4.Make Directory.\n");
             fprintf(stdout,"0.Exit\n");
             fprintf(stdout,"Enter your choice:");
             scanf("%d%*c",&c);
@@ -254,7 +305,7 @@ void menu()
                     change_dir_cli();
                     break;
                 case 4:
-                    make_dir();
+                    make_dir_cli();
                     break;
                     
                 case 0:
