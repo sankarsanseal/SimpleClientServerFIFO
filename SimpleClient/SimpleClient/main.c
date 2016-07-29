@@ -29,6 +29,7 @@ int serverfifo;
 int clientfifo;
 int dummy;
 int userid;
+int last_inode_used;
 MSGSVR empty_msg_to_server;
 MSGCLI empty_msg_to_client;
 
@@ -45,6 +46,8 @@ void initialize_empty_msg_to_cli()
 {
     empty_msg_to_client.error_code=0;
     empty_msg_to_client.msg[0]='\0';
+    empty_msg_to_client.last_inode_used=0;
+    empty_msg_to_client.more=0;
 }
 
 void cleanup(int signaltype)
@@ -66,25 +69,32 @@ char * first_non_whitespace(char * str)
 
 
 
-void read_msg_for_client( int prev, int next)
+void read_msg_for_client()
 {
-    if(prev==0)
+    int more=1;
+
     clientfifo=open(path_to_client,O_RDONLY);
     if(clientfifo)
     {
         fprintf(stdout,"Waiting for message from server to client ID : %d...\n",getpid());
-        
+        while(more)
+        {
         initialize_empty_msg_to_cli();
         
-        if(read(clientfifo,&empty_msg_to_client,sizeof(empty_msg_to_client)))
-        {
-            fprintf(stdout,"Error code received from Server %d\n",empty_msg_to_client.error_code);
-            fprintf(stdout,"Message from Server to Client: %s",empty_msg_to_client.msg);
-            if(empty_msg_to_client.error_code==0)
-                strcpy(present_working_dir,temp_present_working_dir);
+            if(read(clientfifo,&empty_msg_to_client,sizeof(empty_msg_to_client)))
+            {
+                fprintf(stdout,"Error code received from Server %d\n",empty_msg_to_client.error_code);
+                fprintf(stdout,"Message from Server to Client: %s",empty_msg_to_client.msg);
+                if(empty_msg_to_client.error_code==0)
+                {
+                    strcpy(present_working_dir,temp_present_working_dir);
+                    last_inode_used=empty_msg_to_client.last_inode_used;
+                }
+                more=empty_msg_to_client.more;
 
+            }
         }
-            if(next==0)
+
             close(clientfifo);
     }
 }
@@ -103,11 +113,12 @@ void set_echo_user()
         empty_msg_to_server.userid=userid;
         empty_msg_to_server.client_pid=getpid();
         empty_msg_to_server.instruct_code=1;
+        empty_msg_to_server.last_inode_used=1;
         strcpy(present_working_dir,"/");
         strcpy(temp_present_working_dir,present_working_dir);
         strcpy(empty_msg_to_server.msg,temp_present_working_dir);
         write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
-        read_msg_for_client(0,0);
+        read_msg_for_client();
 
     }
     else
@@ -147,9 +158,7 @@ void present_wd_ls_cli()
                 empty_msg_to_server.sub_instruction=0;
 
             write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
-            read_msg_for_client(0,1);
-            if(empty_msg_to_server.sub_instruction==1)
-                read_msg_for_client(1,0);
+            read_msg_for_client();
         }
         
     }
@@ -197,7 +206,7 @@ void change_dir_cli()
             
             
             write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
-            read_msg_for_client(0,0);
+            read_msg_for_client();
         }
         
     }
@@ -229,6 +238,7 @@ void menu()
             fprintf(stdout,"1.Enter the user id and echo\n");
             fprintf(stdout,"2.Present directory and current list.\n");
             fprintf(stdout,"3.Change directory.\n");
+            fprintf(stdout,"4.Make Directory.\n")
             fprintf(stdout,"0.Exit\n");
             fprintf(stdout,"Enter your choice:");
             scanf("%d%*c",&c);
@@ -242,6 +252,9 @@ void menu()
                     break;
                 case 3:
                     change_dir_cli();
+                    break;
+                case 4:
+                    make_dir();
                     break;
                     
                 case 0:

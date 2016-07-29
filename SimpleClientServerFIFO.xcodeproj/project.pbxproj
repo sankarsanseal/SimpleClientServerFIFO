@@ -33,6 +33,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		6A1664911D4B02780092038E /* inode_data_struct.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = inode_data_struct.h; sourceTree = "<group>"; };
 		6A173FB51D44864A00BFB6B6 /* SimpleClient.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = SimpleClient.xcodeproj; path = SimpleClient/SimpleClient.xcodeproj; sourceTree = "<group>"; };
 		6AF58C2C1D446AC7005999DB /* SimpleClientServerFIFO */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = SimpleClientServerFIFO; sourceTree = BUILT_PRODUCTS_DIR; };
 		6AF58C2F1D446AC7005999DB /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
@@ -78,6 +79,7 @@
 			isa = PBXGroup;
 			children = (
 				6AF58C2F1D446AC7005999DB /* main.c */,
+				6A1664911D4B02780092038E /* inode_data_struct.h */,
 			);
 			path = SimpleClientServerFIFO;
 			sourceTree = "<group>";

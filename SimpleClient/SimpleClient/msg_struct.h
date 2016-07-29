@@ -17,12 +17,15 @@ typedef struct msg_to_svr
     int sub_instruction;
     pid_t client_pid;
     int userid;
+    int last_inode_used;
     char msg[PATHLENGTH];
 } MSGSVR;
 
 typedef struct msg_to_client
 {
     int error_code;
+    int last_inode_used;
+    int more;
     char msg[PATHLENGTH];
 } MSGCLI;
 
