@@ -87,7 +87,6 @@ void read_msg_for_client()
                 fprintf(stdout,"Message from Server to Client: %s",empty_msg_to_client.msg);
                 if(empty_msg_to_client.error_code==0)
                 {
-                    strcpy(present_working_dir,temp_present_working_dir);
                     last_inode_used=empty_msg_to_client.last_inode_used;
                 }
                 more=empty_msg_to_client.more;

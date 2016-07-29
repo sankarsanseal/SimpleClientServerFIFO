@@ -227,7 +227,13 @@ void dir_struct_creation(FILE * file,int inode_ind,int isroot)
                            {
                                if(j==0)
                                {
-                                   if((temp->inode=next_free_inode()))
+                                   if(isroot)
+                                   {
+                                       temp->inode=1;
+                                       strcpy(temp->name,".");
+                                   }
+                                       
+                                   else if((temp->inode=next_free_inode()))
                                    strcpy(temp->name,".");
                                    else
                                    {
@@ -284,7 +290,7 @@ void dir_data_block_allocation(int inode_ind)
 
 DIRENTRY * find_next_free_dir_entry_slot(FILE * file, int inode_ind)
 {
-    int i,j;
+    int i,j,flag=0;
     DIRS * temp;
     DIRENTRY * pos=NULL;
 
@@ -296,12 +302,15 @@ DIRENTRY * find_next_free_dir_entry_slot(FILE * file, int inode_ind)
             if((temp=initialize_dir_entry()))
             {
                 fread(temp,sizeof(DIRS),1,file);
+                fprintf(stdout,"temp  node :%d temp name %s\n", temp->inode,temp->name);
                 if(temp->inode==0)
                 {
                     if((pos=initialize_dir_pos()))
                     {
                         pos->i=i;
                         pos->j=j;
+                        flag=1;
+                        
                     }
                     else
                     {
@@ -314,6 +323,9 @@ DIRENTRY * find_next_free_dir_entry_slot(FILE * file, int inode_ind)
                 free(temp);
             }
         }
+        if(flag==1)
+            break;
+
     }
     
     return pos;
@@ -589,17 +601,22 @@ void * make_dir(void * args)
                         fprintf(stdout,"last_inode_used:%d\n",temp->last_inode_used);
                         if((pos=find_next_free_dir_entry_slot(file, temp->last_inode_used)))
                         {
+                            fprintf(stdout,"pos i:%d j:%d\n",pos->i,pos->j);
                             fseek(file,inode_list[temp->last_inode_used].data_block_offset[pos->i]+sizeof(DIRS)*pos->j,SEEK_SET);
                             if((empty_entry=initialize_dir_entry()))
                             {
                                 if((empty_entry->inode=next_free_inode()))
                                 {
-                                    dir_data_block_allocation(empty_entry->inode);
-                                    dir_struct_creation(file, empty_entry->inode, 0);
+                                    fprintf(stdout,"empty_entry inode: %d\n",empty_entry->inode);
+                                    
                                     dirname=strtok(temp->msg,"/");
                                     fprintf(stdout,"Only dirname %s.\n",dirname);
+
                                     strcpy(empty_entry->name,dirname);
                                     fwrite(empty_entry,sizeof(DIRS),1,file);
+
+                                    dir_data_block_allocation(empty_entry->inode);
+                                    dir_struct_creation(file, empty_entry->inode, 0);
                                     if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
                                     {
                                         empty_msg_from_svr_to_cli->error_code=0;
