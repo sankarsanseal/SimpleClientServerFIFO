@@ -25,7 +25,9 @@ int dummy;
 struct stat test;
 pthread_t tid;
 MSGSVR * empty_msg_to_server;
-pthread_rwlock_t rwlock;
+pthread_rwlock_t inode_list_lock;
+pthread_rwlock_t data_block_status_list_lock;
+pthread_rwlock_t sb_lock;
 size_t size_in_MB;
 size_t size_in_bytes;
 size_t blocksize;
@@ -38,9 +40,9 @@ SB sb;
 INODE * inode_list;
 INODE empty_inode;
 DBS * data_block_status_list;
-DBS empty_dbs;
 
-int share_var;
+
+
 
 MSGSVR * initialize_empty_msgsvr()
 {
@@ -61,8 +63,11 @@ MSGCLI * initialize_empty_msg_to_cli()
     MSGCLI * temp=NULL;
     if((temp=(MSGCLI *)malloc(sizeof(MSGCLI))))
     {
-    temp->error_code=0;
-    temp->msg[0]='\0';
+        temp->error_code=0;
+        temp->msg[0]='\0';
+        temp->more=0;
+        temp->ischangedirinst=0;
+        temp->last_inode_used=0;
     }
     
     return temp;
@@ -76,6 +81,7 @@ void write_back_filesystem()
     fsfile=fopen(path_to_fsfile,"rb+");
     if(fsfile)
     {
+        fprintf(stdout,"Next Inode : %d and next data block %d\n",sb.remembered_inode,sb.remembered_data_block);
         fseek(fsfile,0,SEEK_SET);
         fwrite(&sb,sizeof(SB),1,fsfile);
         for(i=0;i<sb.no_of_inode;i++)
@@ -100,9 +106,13 @@ void cleanup(int signaltype)
 {
     if(server_fifo)
     close(server_fifo);
-    pthread_rwlock_destroy(&rwlock);
     unlink(path_to_fifo);
     write_back_filesystem();
+    
+    pthread_rwlock_destroy(&inode_list_lock);
+    pthread_rwlock_destroy(&data_block_status_list_lock);
+    pthread_rwlock_destroy(&sb_lock);
+
     printf("\nExiting..\n");
     exit(0);
 }
@@ -130,6 +140,7 @@ DIRENTRY * initialize_dir_pos()
     {
         temp->i=-1;
         temp->j=-1;
+        temp->inode_ind=0;
     }
     
     
@@ -137,12 +148,15 @@ DIRENTRY * initialize_dir_pos()
     return temp;
 }
 
-int search_name(FILE * file, int inode_ind, char * str)
+DIRENTRY * search_name(FILE * file, int inode_ind, char * str)
 {
-    int i,j;
-    int found_inode=0;
+    int i,j,flag=0;
+
     DIRS * temp;
-    if((temp=initialize_dir_entry()))
+    DIRENTRY * pos=NULL;
+    pthread_rwlock_rdlock(&inode_list_lock);
+
+    if(inode_list[inode_ind].lock==0)
     {
         for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
         {
@@ -151,26 +165,47 @@ int search_name(FILE * file, int inode_ind, char * str)
                 fseek(file,inode_list[inode_ind].data_block_offset[i],SEEK_SET);
                 for(j=0;j<sb.no_of_inode;j++)
                 {
-                    fread(temp,sizeof(DIRS),1,file);
-                    if(!strcmp(temp->name,str))
+                    if((temp=initialize_dir_entry()))
                     {
-                        found_inode=temp->inode;
-                        break;
+                        fread(temp,sizeof(DIRS),1,file);
+                        if(!strcmp(temp->name,str))
+                        {
+                            if((pos=initialize_dir_pos()))
+                               {
+                                   pos->i=i;
+                                   pos->j=j;
+                                   pos->inode_ind=temp->inode;
+                                   flag=1;
+                               }
+                            break;
+                        }
+                        free(temp);
                     }
+                    
                 }
                 
             }
+            
+            if(flag)
+                break;
+
+    
         }
-        free(temp);
     }
+    else
+    {
+        fprintf(stderr,"Searched inode %d is locked.\n",inode_ind);
+    }
+    pthread_rwlock_unlock(&inode_list_lock);
        
-       return found_inode;
+    
+    return pos;
 }
 
-int iname(char * path,int inode_ind, FILE * file)
+/*int iname(char * path,int inode_ind, FILE * file)
 {
     char * name;
-    int inode=0;
+    DIRENTRY * inode;
         if(path[0]=='/')
             inode=1;
         else
@@ -184,43 +219,54 @@ int iname(char * path,int inode_ind, FILE * file)
     
     
     return inode;
-}
+}*/
 
 int next_free_inode()
 {
     int temp=0;
     int i;
+    pthread_rwlock_wrlock(&sb_lock);
+    pthread_rwlock_wrlock(&inode_list_lock);
     if(sb.remembered_inode!=0)
     temp=sb.remembered_inode;
     for(i=sb.remembered_inode+1;i<sb.no_of_inode;i++)
     {
             if((inode_list[i].type==0)&&(inode_list[i].lock==0) )
             {
+                inode_list[i].lock=1;
                 sb.remembered_inode=i;
+                inode_list[i].lock=0;
                 break;
             }
             else
                 continue;
     }
+    pthread_rwlock_unlock(&inode_list_lock);
+    pthread_rwlock_unlock(&sb_lock);
     
     return temp;
     
 }
 
-int next_free_data_block()
+off_t next_free_data_block()
 {
-    int temp=-1;
+    off_t temp=-1;
     int i;
+    pthread_rwlock_wrlock(&sb_lock);
+    pthread_rwlock_wrlock(&data_block_status_list_lock);
+    
     if(sb.remembered_data_block!=-1)
     {
-        temp=sb.remembered_data_block;
+        temp=data_block_status_list[sb.remembered_data_block].data_block_offset;
         data_block_status_list[sb.remembered_data_block].empty=0;
     }
     for(i=sb.remembered_data_block+1;i<sb.no_of_data_blocks;i++)
     {
         if((data_block_status_list[i].empty==1)&&(data_block_status_list[i].lock==0))
         {
+            data_block_status_list[i].lock=1;
             sb.remembered_data_block=i;
+            data_block_status_list[i].lock=0;
             break;
         }
         else
@@ -228,6 +274,8 @@ int next_free_data_block()
     }
     if(i==sb.no_of_data_blocks)
         sb.remembered_data_block=-1;
+    pthread_rwlock_unlock(&data_block_status_list_lock);
+    pthread_rwlock_unlock(&sb_lock);
     
     return temp;
 }
@@ -237,6 +285,7 @@ void dir_struct_creation(FILE * file,int inode_ind,int parent_inode_ind, int isr
 {
     int i,j;
     DIRS * temp;
+    pthread_rwlock_rdlock(&inode_list_lock);
 
     if(inode_list[inode_ind].lock==1)
         fprintf(stderr,"Inode is locked. Please try after some time.\n");
@@ -282,6 +331,7 @@ void dir_struct_creation(FILE * file,int inode_ind,int parent_inode_ind, int isr
                                     temp->inode=parent_inode_ind;
                                     }
                                 }
+                           inode_list[inode_ind].reference_count=2;
                            
                        }
                         fwrite(temp,sizeof(DIRS),1,file);
@@ -301,12 +351,13 @@ void dir_struct_creation(FILE * file,int inode_ind,int parent_inode_ind, int isr
                 
         }
     }
-
+    pthread_rwlock_unlock(&inode_list_lock);
 }
 
 void dir_data_block_allocation(int inode_ind)
 {
     int i;
+    pthread_rwlock_wrlock(&inode_list_lock);
     inode_list[inode_ind].lock=1;
     inode_list[inode_ind].type=1;
 
@@ -326,6 +377,21 @@ void dir_data_block_allocation(int inode_ind)
         }
     }
     inode_list[inode_ind].lock=0;
+    pthread_rwlock_unlock(&inode_list_lock);
+}
+
+void dir_data_block_release(int inode_ind)
+{
+    int i;
+    int data_block_ind;
+    for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
+    {
+    
+        data_block_ind=(int)( inode_list[inode_ind].data_block_offset[i]-sizeof(SB)-sizeof(INODE)*sb.no_of_inode-sizeof(DBS)*sb.remembered_data_block)/blocksize;
+        if(data_block_ind < sb.remembered_data_block)
+            sb.remembered_data_block=data_block_ind;
+    }
+    
 }
 
 DIRENTRY * find_next_free_dir_entry_slot(FILE * file, int inode_ind)
@@ -333,6 +399,9 @@ DIRENTRY * find_next_free_dir_entry_slot(FILE * file, int inode_ind)
     int i,j,flag=0;
     DIRS * temp;
     DIRENTRY * pos=NULL;
+    pthread_rwlock_wrlock(&inode_list_lock);
+    
+    //inode_list[inode_ind].lock=1;
 
     for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
     {
@@ -367,6 +436,7 @@ DIRENTRY * find_next_free_dir_entry_slot(FILE * file, int inode_ind)
             break;
 
     }
+    pthread_rwlock_unlock(&inode_list_lock);
     
     return pos;
     
@@ -395,6 +465,7 @@ void * echo_userid(void * argv)
                     sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *present working directory:\n %s\n",temp->userid,temp->client_pid,temp->msg);
                     empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
                     empty_msg_from_svr_to_cli->more=0;
+                    empty_msg_from_svr_to_cli->ischangedirinst=0;
                     write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
                     free(empty_msg_from_svr_to_cli);
                 }
@@ -431,14 +502,17 @@ void * present_wd_ls(void * argv)
         
             cli_fifo=open(path_to_cli_fifo,O_WRONLY);
             if(cli_fifo)
-            
             {
             
                 if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
                 {
                 empty_msg_from_svr_to_cli->error_code=0;
                 sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *present working directory:\n %s\n",temp->userid,temp->client_pid,temp->msg);
-                empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
+                
+                    empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
+                    
+                    empty_msg_from_svr_to_cli->ischangedirinst=0;
+                    
                 
                 if(temp->sub_instruction==1)
                     empty_msg_from_svr_to_cli->more=1;
@@ -452,44 +526,30 @@ void * present_wd_ls(void * argv)
                 }
                 if(temp->sub_instruction==1)
                 {
-                
-                    if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                    inode_ind=temp->last_inode_used;
+                    for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
                     {
-                        inode_ind=iname(temp->msg, temp->last_inode_used, file);
-                    
-                        if(inode_ind==0)
+                        if(inode_list[inode_ind].data_block_offset[i]!=0)
                         {
-                        empty_msg_from_svr_to_cli->error_code=1;
-                        strcpy(empty_msg_from_svr_to_cli->msg,"No directory listing available.\n");
-                        empty_msg_from_svr_to_cli->more=0;
-                        empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
-                        write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
-                        free(empty_msg_from_svr_to_cli);
-
-                        }
-                        else
-                        {
-                            free(empty_msg_from_svr_to_cli);
-                            for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
+                            fseek(file, inode_list[inode_ind].data_block_offset[i], SEEK_SET);
+                            
+                            for(j=0;j<sb.no_of_directory_entry;j++)
                             {
-                                if(inode_list[inode_ind].data_block_offset[i]!=0)
+                                if((tempdir=initialize_dir_entry()))
                                 {
-                                fseek(file, inode_list[inode_ind].data_block_offset[i], SEEK_SET);
-                                
-                                    for(j=0;j<sb.no_of_directory_entry;j++)
+                                    fread(tempdir,sizeof(DIRS),1,file);
+                                    if(tempdir->inode!=0)
                                     {
-                                        if((tempdir=initialize_dir_entry()))
+                                        
+                                        if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                                            
                                         {
-                                            fread(tempdir,sizeof(DIRS),1,file);
-                                            if(tempdir->inode!=0)
-                                            {
-                                                if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
-                                                {
-                                                sprintf(empty_msg_from_svr_to_cli->msg, "Inode no: %d | Name: %s\n",tempdir->inode,tempdir->name);
+                                            sprintf(empty_msg_from_svr_to_cli->msg, "Inode no: %d | Name: %s\n",tempdir->inode,tempdir->name);
                                                 
                                                 empty_msg_from_svr_to_cli->error_code=0;
                                                 empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
                                                 empty_msg_from_svr_to_cli->more=1;
+                                                    empty_msg_from_svr_to_cli->ischangedirinst=0;
                                                 write(cli_fifo, empty_msg_from_svr_to_cli,sizeof(MSGCLI));
                                                 free(empty_msg_from_svr_to_cli);
                                                 }
@@ -513,21 +573,20 @@ void * present_wd_ls(void * argv)
                                 empty_msg_from_svr_to_cli->error_code=0;
                                 empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
                                 empty_msg_from_svr_to_cli->more=0;
+                                empty_msg_from_svr_to_cli->ischangedirinst=0;
                                 sprintf(empty_msg_from_svr_to_cli->msg,"End of directory listing\n");
                                 write(cli_fifo, empty_msg_from_svr_to_cli,sizeof(MSGCLI));
                             free(empty_msg_from_svr_to_cli);
                             }
                         
                         
-                        }
-                    }
-                    else
-                    {
-                        fprintf(stderr,"Error on allocating empty msg fro svr to client.\n");
-                    }
+                    
                 }
 
+            
+            
                 close(cli_fifo);
+            
             }
         }
     }
@@ -551,46 +610,88 @@ void * change_dir(void * argv)
     MSGCLI * empty_msg_from_svr_to_cli;
     char * path_to_cli_fifo;
     int cli_fifo;
+    DIRENTRY * pos;
+    FILE * file;
+    
 
+    file=fopen(path_to_fsfile,"rb");
     
-    
-    
-    if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
+    if(file)
     {
-        sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
-        
-        
-        cli_fifo=open(path_to_cli_fifo,O_WRONLY);
-        if(cli_fifo)
-            
+    
+    
+        if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
+    
         {
-            if(!pthread_rwlock_wrlock(&rwlock))
+        
+            sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
+        
+        
+        
+            cli_fifo=open(path_to_cli_fifo,O_WRONLY);
+        
+            if(cli_fifo)
+            
+        
             {
-                
             
                 if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+            
                 {
-                    fprintf(stdout,"Waiting to update shared variable:");
-                    scanf("%d",&share_var);
-                empty_msg_from_svr_to_cli->error_code=0;
-                sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *present working directory:\n %s\n shared var value %d\n",temp->userid,temp->client_pid,temp->msg,share_var);
-                
-                write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
-                free(empty_msg_from_svr_to_cli);
-                
-                
-                }
-            pthread_rwlock_unlock(&rwlock);
+                    fprintf(stdout,"Temp msg at change dir %s\n",temp->msg);
+                    
+                    pos=search_name(file, temp->last_inode_used, temp->msg);
+                    
+                    if(pos)
+                    {
+                      if (inode_list[pos->inode_ind].type==1)
+                      {
+                          empty_msg_from_svr_to_cli->error_code=0;
+                          empty_msg_from_svr_to_cli->last_inode_used=pos->inode_ind;
+                          empty_msg_from_svr_to_cli->more=0;
+                          empty_msg_from_svr_to_cli->ischangedirinst=1;
+                          sprintf(empty_msg_from_svr_to_cli->msg,"%s",temp->msg);
+                      }
+                      else
+                      {
+                          empty_msg_from_svr_to_cli->error_code=1;
+                          empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
+                          empty_msg_from_svr_to_cli->more=0;
+                          empty_msg_from_svr_to_cli->ischangedirinst=0;
+                          sprintf(empty_msg_from_svr_to_cli->msg,"%s is not directory.\n",temp->msg);
+                      }
+                        
+                        
+                        free(pos);
+                    
+                    }
+                    else
+                    {
+                        empty_msg_from_svr_to_cli->error_code=1;
+                        empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
+                        empty_msg_from_svr_to_cli->more=0;
+                        empty_msg_from_svr_to_cli->ischangedirinst=0;
+                        sprintf(empty_msg_from_svr_to_cli->msg,"%s directory is not found.\n",temp->msg);
+                    }
+                    
 
+                
+                
+                    write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
+                
+                    free(empty_msg_from_svr_to_cli);
+                    }
+            
+                }
+                close(cli_fifo);
             }
-            else
-                fprintf(stdout,"Can not get write lock.\n");
-        close(cli_fifo);
+            if(temp)
+                free(temp);
         }
-        if(temp)
-            free(temp);
-        
-    }
+    
+    
+    if(file)
+        fclose(file);
     return NULL;
     
 }
@@ -600,12 +701,16 @@ void * make_dir(void * args)
     MSGSVR * temp=(MSGSVR *) args;
     MSGCLI * empty_msg_from_svr_to_cli;
     char * path_to_cli_fifo;
-    char * dirname;
+    char empty_str[32];
+
     int cli_fifo;
     FILE * file;
-    int inode_ind;
+    
     DIRENTRY * pos;
+
     DIRS * empty_entry;
+    
+    empty_str[0]='\0';
     
     file=fopen(path_to_fsfile,"rb+");
     
@@ -621,32 +726,35 @@ void * make_dir(void * args)
             if(cli_fifo)
             
             {
-                if(!pthread_rwlock_wrlock(&rwlock))
-                {
-                    inode_ind=iname(temp->msg, temp->last_inode_used, file);
-                    fprintf(stdout,"Inode ind %d\n",inode_ind);
-                    if(inode_ind)
+
+                pos=search_name(file, temp->last_inode_used, temp->msg);
+
+                    if(pos&&pos->inode_ind)
                     {
-                
+                        fprintf(stdout,"Inode ind %d\n",pos->inode_ind);
                         if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
                         {
 
                             empty_msg_from_svr_to_cli->error_code=1;
-                            sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *Can not create directory :\n %s\n Directory Already exists\n",temp->userid,temp->client_pid,temp->msg);
+                            sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *Can not create directory :\n %s\n Directory name already exists\n",temp->userid,temp->client_pid,temp->msg);
                             empty_msg_from_svr_to_cli->more=0;
                             empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
+                            empty_msg_from_svr_to_cli->ischangedirinst=0;
                     
                             write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
                             free(empty_msg_from_svr_to_cli);
                     
                     
                         }
+                        free(pos);
                     
                     }
                     else
                     {
+
                         fprintf(stdout,"last_inode_used:%d\n",temp->last_inode_used);
-                        if((pos=find_next_free_dir_entry_slot(file, temp->last_inode_used)))
+                        
+                        if((pos=search_name(file, temp->last_inode_used, empty_str)))
                         {
                             fprintf(stdout,"pos i:%d j:%d\n",pos->i,pos->j);
                             fseek(file,inode_list[temp->last_inode_used].data_block_offset[pos->i]+sizeof(DIRS)*pos->j,SEEK_SET);
@@ -656,10 +764,7 @@ void * make_dir(void * args)
                                 {
                                     fprintf(stdout,"empty_entry inode: %d\n",empty_entry->inode);
                                     
-                                    dirname=strtok(temp->msg,"/");
-                                    fprintf(stdout,"Only dirname %s.\n",dirname);
-
-                                    strcpy(empty_entry->name,dirname);
+                                    strcpy(empty_entry->name,temp->msg);
                                     fwrite(empty_entry,sizeof(DIRS),1,file);
 
                                     dir_data_block_allocation(empty_entry->inode);
@@ -670,7 +775,7 @@ void * make_dir(void * args)
                                         empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
                                         empty_msg_from_svr_to_cli->more=0;
                                         sprintf(empty_msg_from_svr_to_cli->msg,"New directory %s is created.\n",empty_entry->name);
-                                        
+                                        empty_msg_from_svr_to_cli->ischangedirinst=0;
                                         write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
 
                                         free(empty_msg_from_svr_to_cli);
@@ -679,6 +784,8 @@ void * make_dir(void * args)
                                     {
                                         fprintf(stderr,"Error on allocating empty msg to client.\n");
                                     }
+                                    
+                                    inode_list[temp->last_inode_used].reference_count++;
                                 }
                                 else
                                 {
@@ -698,11 +805,8 @@ void * make_dir(void * args)
                         }
                     
                     }
-                pthread_rwlock_unlock(&rwlock);
-                
-                }
-                else
-                    fprintf(stdout,"Can not get write lock.\n");
+
+
                 close(cli_fifo);
             }
         if(temp)
@@ -718,6 +822,128 @@ void * make_dir(void * args)
     
 }
 
+void * remove_dir(void * args)
+{
+    MSGSVR * temp=(MSGSVR *) args;
+    MSGCLI * empty_msg_from_svr_to_cli;
+    char * path_to_cli_fifo;
+    
+    int cli_fifo;
+    FILE * file;
+
+    DIRENTRY * pos;
+    DIRS * empty_entry;
+    
+    file=fopen(path_to_fsfile,"rb+");
+    
+    if(file)
+    {
+        if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
+        {
+            sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
+            
+            
+            
+            cli_fifo=open(path_to_cli_fifo,O_WRONLY);
+            if(cli_fifo)
+                
+            {
+                
+                pos=search_name(file, temp->last_inode_used, temp->msg);
+
+                if(pos&&pos->inode_ind)
+                {
+                    fprintf(stdout,"Inode ind %d\n",pos->inode_ind);
+                    if((inode_list[pos->inode_ind].type==1)&&(inode_list[pos->inode_ind].reference_count==2))
+                    {
+                        fseek(file, inode_list[temp->last_inode_used].data_block_offset[pos->i]+sizeof(DIRS)*pos->j, SEEK_SET);
+                        if((empty_entry=initialize_dir_entry()))
+                        {
+                            fwrite(empty_entry, sizeof(DIRS), 1, file);
+                            dir_data_block_release(pos->inode_ind);
+                            inode_list[pos->inode_ind].type=0;
+                            inode_list[temp->last_inode_used].reference_count--;
+                            
+                            if(sb.remembered_inode > pos->inode_ind)
+                                sb.remembered_inode=pos->inode_ind;
+                            
+                        
+                            if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                            {
+                        
+                                empty_msg_from_svr_to_cli->error_code=0;
+                                sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *Directory %s is deleted.\n",temp->userid,temp->client_pid,temp->msg);
+                                empty_msg_from_svr_to_cli->more=0;
+                                empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
+                                empty_msg_from_svr_to_cli->ischangedirinst=0;
+                        
+                                write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
+                                free(empty_msg_from_svr_to_cli);
+                        
+                            }
+                        }
+                        else
+                        {
+                            fprintf(stderr,"Error on initializing dir entry.\n");
+                        }
+
+                        
+                        
+                    }
+                    else
+                    {
+                        if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                        {
+                            empty_msg_from_svr_to_cli->error_code=1;
+                            sprintf(empty_msg_from_svr_to_cli->msg,"Your user id is %d using client ID %d\n *Can not delete directory :\n %s\n provided name %s is not directory or not empty.\n",temp->userid,temp->client_pid,temp->msg,temp->msg);
+                            empty_msg_from_svr_to_cli->more=0;
+                            empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
+                            empty_msg_from_svr_to_cli->ischangedirinst=0;
+                        
+                            write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
+                            free(empty_msg_from_svr_to_cli);
+                        }
+                        
+
+                    }
+                    
+                    free(pos);
+                    
+                }
+                else
+                {
+                    if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                    {
+                        empty_msg_from_svr_to_cli->error_code=1;
+                        empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
+                        empty_msg_from_svr_to_cli->more=0;
+                        printf(empty_msg_from_svr_to_cli->msg,"Provided directory %s is  not found.\n",temp->msg);
+                        empty_msg_from_svr_to_cli->ischangedirinst=0;
+                        write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
+                                    
+                        free(empty_msg_from_svr_to_cli);
+                        
+                    }
+                    else
+                    {
+                        fprintf(stderr,"Error on allocating empty msg to client.\n");
+                    }
+                    
+                }
+                close(cli_fifo);
+            }
+            if(temp)
+                free(temp);
+            
+        }
+    }
+    
+    if(file)
+        fclose(file);
+    return NULL;
+    
+    
+}
 
 void readfromfifo()
 {
@@ -746,6 +972,9 @@ void readfromfifo()
                     break;
                 case 4:
                     pthread_create(&tid,NULL,make_dir,empty_msg_to_server);
+                    break;
+                case 5:
+                    pthread_create(&tid, NULL, remove_dir, empty_msg_to_server);
                     break;
                 
                     
@@ -786,7 +1015,9 @@ void start_server()
     else
     {
         fprintf(stdout,"Starting server...\n");
-        pthread_rwlock_init(&rwlock,NULL);
+        pthread_rwlock_init(&inode_list_lock,NULL);
+        pthread_rwlock_init(&data_block_status_list_lock, NULL);
+        pthread_rwlock_init(&sb_lock, NULL);
 
         readfromfifo();
         
@@ -872,10 +1103,11 @@ void root_inode_creation()
 {
     int i,j;
     DIRS * temp;
+    inode_list[1].lock=1;
     inode_list[1].created=time(NULL);
     inode_list[1].accessed=time(NULL);
     inode_list[1].modified=time(NULL);
-    inode_list[1].lock=1;
+
     inode_list[1].type=1;
     for(i=0;(i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE)
                 && (sb.remembered_data_block<sb.no_of_data_blocks);

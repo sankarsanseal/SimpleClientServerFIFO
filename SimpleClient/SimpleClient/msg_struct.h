@@ -25,6 +25,7 @@ typedef struct msg_to_client
 {
     int error_code;
     int last_inode_used;
+    int ischangedirinst;
     int more;
     char msg[PATHLENGTH];
 } MSGCLI;

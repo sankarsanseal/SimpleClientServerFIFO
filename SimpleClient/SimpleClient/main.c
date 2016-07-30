@@ -83,11 +83,43 @@ void read_msg_for_client()
         
             if(read(clientfifo,&empty_msg_to_client,sizeof(empty_msg_to_client)))
             {
-                fprintf(stdout,"Error code received from Server %d\n",empty_msg_to_client.error_code);
-                fprintf(stdout,"Message from Server to Client: %s",empty_msg_to_client.msg);
+                fprintf(stdout,"Error code received from Server : %d\n",empty_msg_to_client.error_code);
+                fprintf(stdout,"Message from Server to Client: %s\n",empty_msg_to_client.msg);
                 if(empty_msg_to_client.error_code==0)
                 {
                     last_inode_used=empty_msg_to_client.last_inode_used;
+                    if(empty_msg_to_client.ischangedirinst==1)
+                    {
+                        if(strcmp(present_working_dir,"/"))
+                        {
+                        
+                            if(!strcmp(empty_msg_to_client.msg,"."))
+                                ;
+                        
+                            else if(!strcmp(empty_msg_to_client.msg,".."))
+                        
+                            {
+                                
+                            
+                                *(strrchr(present_working_dir,'/'))='\0';
+                                if(!strcmp(present_working_dir,""))
+                                    strcpy(present_working_dir,"/");
+                        
+                            }
+                            else
+                            {
+                                strcat(present_working_dir,"/");
+                                strcat(present_working_dir,empty_msg_to_client.msg);
+ 
+                            }
+                        }
+                        else
+                        {
+                            if(strcmp(empty_msg_to_client.msg,".")&&strcmp(empty_msg_to_client.msg,".."))
+                                strcat(present_working_dir,empty_msg_to_client.msg);
+                        }
+ 
+                    }
                 }
                 more=empty_msg_to_client.more;
 
@@ -114,8 +146,7 @@ void set_echo_user()
         empty_msg_to_server.instruct_code=1;
         empty_msg_to_server.last_inode_used=1;
         strcpy(present_working_dir,"/");
-        strcpy(temp_present_working_dir,present_working_dir);
-        strcpy(empty_msg_to_server.msg,temp_present_working_dir);
+        strcpy(empty_msg_to_server.msg,present_working_dir);
         write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
         read_msg_for_client();
 
@@ -143,9 +174,10 @@ void present_wd_ls_cli()
             empty_msg_to_server.userid=userid;
             empty_msg_to_server.client_pid=getpid();
             empty_msg_to_server.instruct_code=2;
+            empty_msg_to_server.last_inode_used=last_inode_used;
 
-            strcpy(temp_present_working_dir,present_working_dir);
-            strcpy(empty_msg_to_server.msg,temp_present_working_dir);
+
+            strcpy(empty_msg_to_server.msg,present_working_dir);
             
             fprintf(stdout,"Want to see whole list?\n 1.Yes \n 2.No\n");
             fprintf(stdout,"Enter the choice:");
@@ -177,22 +209,27 @@ void change_dir_cli()
     {
         initialize_empty_msgsvr();
         if(userid==0)
-            fprintf(stdout,"***Enter the userid first.\n");
+            fprintf(stderr,"***Enter the userid first.\n");
         else
         {
             empty_msg_to_server.userid=userid;
             empty_msg_to_server.client_pid=getpid();
             empty_msg_to_server.instruct_code=3;
+            empty_msg_to_server.last_inode_used=last_inode_used;
+            empty_msg_to_server.sub_instruction=0;
             
             printf("Enter the directory to which you like to change:\n");
             scanf("%[^\n]%*c",path_to_new_dir);
             
             //sprintf(stdout,"%s\n",path_to_new_dir);
             //sprintf(temp_present_working_dir,")
+            
             strcpy(temp_present_working_dir, first_non_whitespace(path_to_new_dir));
+            
+            
             //fprintf(stdout,"temp_present %s",temp_present_working_dir);
             
-            if(temp_present_working_dir[0]=='/')
+  /*          if(temp_present_working_dir[0]=='/')
                 ;
             else
             {
@@ -201,6 +238,7 @@ void change_dir_cli()
                 strcpy(temp_present_working_dir,present_working_dir);
                 strcat(temp_present_working_dir, path_to_new_dir);
             }
+   */
             strcpy(empty_msg_to_server.msg,temp_present_working_dir);
             
             
@@ -228,30 +266,24 @@ void make_dir_cli()
             empty_msg_to_server.userid=userid;
             empty_msg_to_server.client_pid=getpid();
             empty_msg_to_server.instruct_code=4;
+            empty_msg_to_server.last_inode_used=last_inode_used;
+            empty_msg_to_server.sub_instruction=0;
+
             
             printf("Enter the name of directory which you like to create:\n");
             scanf("%[^\n]%*c",path_to_new_dir);
             
             //sprintf(stdout,"%s\n",path_to_new_dir);
             //sprintf(temp_present_working_dir,")
+            
             strcpy(temp_present_working_dir, first_non_whitespace(path_to_new_dir));
+            
+            
             //fprintf(stdout,"temp_present %s",temp_present_working_dir);
             
-            if(temp_present_working_dir[0]=='/')
-                ;
-            else
-            {
-                strcpy(path_to_new_dir,temp_present_working_dir);
-                
-                strcpy(temp_present_working_dir,present_working_dir);
-                strcat(temp_present_working_dir, path_to_new_dir);
-            
-            }
-            
+           
             strcpy(empty_msg_to_server.msg,temp_present_working_dir);
 
-            empty_msg_to_server.last_inode_used=last_inode_used;
-            empty_msg_to_server.sub_instruction=0;
 
             
             write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
@@ -267,6 +299,62 @@ void make_dir_cli()
     }
 }
 
+void remove_dir_cli()
+{
+    if(serverfifo)
+    {
+        initialize_empty_msgsvr();
+        if(userid==0)
+            fprintf(stderr,"***Enter the userid first.\n");
+        else
+        {
+         
+            
+            printf("Enter the name of directory which you like to delete:\n");
+            scanf("%[^\n]%*c",path_to_new_dir);
+            
+            //sprintf(stdout,"%s\n",path_to_new_dir);
+            //sprintf(temp_present_working_dir,")
+            
+            strcpy(temp_present_working_dir, first_non_whitespace(path_to_new_dir));
+            
+            if(strcmp(temp_present_working_dir,".") && strcmp(temp_present_working_dir, ".."))
+            {
+            
+            empty_msg_to_server.userid=userid;
+            empty_msg_to_server.client_pid=getpid();
+            empty_msg_to_server.instruct_code=5;
+            empty_msg_to_server.last_inode_used=last_inode_used;
+            empty_msg_to_server.sub_instruction=0;
+            
+            
+            
+            //fprintf(stdout,"temp_present %s",temp_present_working_dir);
+            
+            
+            strcpy(empty_msg_to_server.msg,temp_present_working_dir);
+            
+            
+            
+            write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
+            read_msg_for_client();
+            }
+            else
+            {
+                fprintf(stderr,"***Can not delete . or ..\n");
+                
+            }
+        }
+        
+        
+    }
+    else
+    {
+        fprintf(stderr,"Message to server is not send.\n");
+        
+    }
+
+}
 
 
 void menu()
@@ -289,6 +377,7 @@ void menu()
             fprintf(stdout,"2.Present directory and current list.\n");
             fprintf(stdout,"3.Change directory.\n");
             fprintf(stdout,"4.Make Directory.\n");
+            fprintf(stdout,"5.Remove Directory.\n");
             fprintf(stdout,"0.Exit\n");
             fprintf(stdout,"Enter your choice:");
             scanf("%d%*c",&c);
@@ -305,6 +394,9 @@ void menu()
                     break;
                 case 4:
                     make_dir_cli();
+                    break;
+                case 5:
+                    remove_dir_cli();
                     break;
                     
                 case 0:
