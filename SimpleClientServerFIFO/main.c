@@ -68,7 +68,33 @@ MSGCLI * initialize_empty_msg_to_cli()
     return temp;
 }
 
-
+void write_back_filesystem()
+{
+    int i;
+    fprintf(stdout,"\nFilesystem file closing is started.\n");
+    
+    fsfile=fopen(path_to_fsfile,"rb+");
+    if(fsfile)
+    {
+        fseek(fsfile,0,SEEK_SET);
+        fwrite(&sb,sizeof(SB),1,fsfile);
+        for(i=0;i<sb.no_of_inode;i++)
+            fwrite((inode_list+i),sizeof(INODE),1,fsfile);
+        for(i=0;i<sb.no_of_data_blocks;i++)
+            fwrite((data_block_status_list+i),sizeof(DBS),1,fsfile);
+        
+        fprintf(stdout,"Filesystem file is written successfully.\n");
+        
+        fclose(fsfile);
+    }
+    else
+    {
+        fprintf(stderr,"Can not open the filesystem file to write last time.\n");
+    }
+    
+    if(fsfile)
+        fclose(fsfile);
+}
 
 void cleanup(int signaltype)
 {
@@ -76,6 +102,7 @@ void cleanup(int signaltype)
     close(server_fifo);
     pthread_rwlock_destroy(&rwlock);
     unlink(path_to_fifo);
+    write_back_filesystem();
     printf("\nExiting..\n");
     exit(0);
 }
@@ -206,7 +233,7 @@ int next_free_data_block()
 }
 
 
-void dir_struct_creation(FILE * file,int inode_ind,int isroot)
+void dir_struct_creation(FILE * file,int inode_ind,int parent_inode_ind, int isroot)
 {
     int i,j;
     DIRS * temp;
@@ -221,41 +248,54 @@ void dir_struct_creation(FILE * file,int inode_ind,int isroot)
             {
                 fseek(file,inode_list[inode_ind].data_block_offset[i],SEEK_SET);
                 for(j=0;j<sb.no_of_directory_entry;j++)
-                    if((i==0)&&(j<=1))
+                {
+                    if((temp=initialize_dir_entry()))
+                    {
+                    
+                        if((i==0)&&(j<=1))
                        {
-                           if((temp=initialize_dir_entry()))
-                           {
+
                                if(j==0)
                                {
+                                   strcpy(temp->name,".");
+
                                    if(isroot)
                                    {
                                        temp->inode=1;
-                                       strcpy(temp->name,".");
                                    }
                                        
-                                   else if((temp->inode=next_free_inode()))
-                                   strcpy(temp->name,".");
                                    else
                                    {
-                                       fprintf(stderr,"Problem with available inode.\n");
-                                       exit(8);
+                                       temp->inode=inode_ind;
                                    }
-                               }
+                                }
                                 if(j==1)
                                 {
-                                    temp->inode=inode_ind;
                                     strcpy(temp->name,"..");
+
+                                    if(isroot)
+                                    {
+                                        temp->inode=1;
+                                    }
+                                    else
+                                    {
+                                    temp->inode=parent_inode_ind;
+                                    }
                                 }
-                               
-                               fwrite(temp,sizeof(DIRS),1,file);
-                               free(temp);
-                           }
-                           else
-                           {
-                               fprintf(stderr,"Some problem with memory allocation while dir structure is created.\n");
-                           }
                            
                        }
+                        fwrite(temp,sizeof(DIRS),1,file);
+                        free(temp);
+
+                    }
+                    else
+                    {
+                        
+                        fprintf(stderr,"Some problem with memory allocation while dir structure is created.\n");
+                    }
+                           
+                    
+                }
                        
             }
                 
@@ -342,6 +382,7 @@ void * echo_userid(void * argv)
     if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
     {
         sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
+        
     
         cli_fifo=open(path_to_cli_fifo,O_WRONLY);
             if(cli_fifo)
@@ -386,6 +427,7 @@ void * present_wd_ls(void * argv)
         if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
         {
             sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
+            
         
             cli_fifo=open(path_to_cli_fifo,O_WRONLY);
             if(cli_fifo)
@@ -414,7 +456,8 @@ void * present_wd_ls(void * argv)
                     if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
                     {
                         inode_ind=iname(temp->msg, temp->last_inode_used, file);
-                    if(inode_ind==0)
+                    
+                        if(inode_ind==0)
                         {
                         empty_msg_from_svr_to_cli->error_code=1;
                         strcpy(empty_msg_from_svr_to_cli->msg,"No directory listing available.\n");
@@ -511,9 +554,11 @@ void * change_dir(void * argv)
 
     
     
+    
     if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
     {
         sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
+        
         
         cli_fifo=open(path_to_cli_fifo,O_WRONLY);
         if(cli_fifo)
@@ -569,6 +614,8 @@ void * make_dir(void * args)
         if((path_to_cli_fifo= (char *)malloc(sizeof(char)*PATHLENGTH)))
         {
             sprintf(path_to_cli_fifo,"/tmp/client.%d",temp->client_pid);
+            
+
         
             cli_fifo=open(path_to_cli_fifo,O_WRONLY);
             if(cli_fifo)
@@ -616,7 +663,7 @@ void * make_dir(void * args)
                                     fwrite(empty_entry,sizeof(DIRS),1,file);
 
                                     dir_data_block_allocation(empty_entry->inode);
-                                    dir_struct_creation(file, empty_entry->inode, 0);
+                                    dir_struct_creation(file, empty_entry->inode,temp->last_inode_used, 0);
                                     if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
                                     {
                                         empty_msg_from_svr_to_cli->error_code=0;
@@ -759,7 +806,7 @@ void fs_file_creation()
         sb.no_of_inode=no_of_inodes;
         sb.no_of_data_blocks=no_of_datablocks;
         sb.no_of_directory_entry=no_of_directory_entry;
-        fwrite(&sb,sizeof(sb),1,fsfile);
+        fwrite(&sb,sizeof(SB),1,fsfile);
         inode_list=(INODE *)malloc(sizeof(INODE)*no_of_inodes);
         if(inode_list)
         {
@@ -781,7 +828,7 @@ void fs_file_creation()
         else
         {
             fprintf(stderr,"Error in inode list memory allocation.\n");
-            exit(1);
+           // exit(1);
         }
         fprintf(stdout,"Size of data block status : %lu \n",sizeof(DBS));
         data_block_status_list=(DBS *)malloc(sizeof(DBS)*no_of_datablocks);
@@ -801,7 +848,7 @@ void fs_file_creation()
         else
         {
             fprintf(stderr,"Error in data block status list.\n");
-            exit(2);
+           // exit(2);
         }
         
         for(i=0;i<no_of_datablocks;i++)
@@ -816,7 +863,9 @@ void fs_file_creation()
     {
         fprintf(stderr,"Error with filesystem file opening.\n");
     }
-    
+    if(fsfile)
+        fclose(fsfile);
+        
 }
 
 void root_inode_creation()
@@ -848,7 +897,7 @@ void root_inode_creation()
     }*/
     sb.remembered_inode++;
     
-    dir_struct_creation(fsfile,1,1);
+    dir_struct_creation(fsfile,1,1,1);
     for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
     {
         fseek(fsfile,inode_list[1].data_block_offset[i],SEEK_SET);
@@ -890,7 +939,7 @@ void fs_file_open()
         else
         {
             fprintf(stderr,"Problem with inode list allocation in memory.\n");
-            exit(6);
+            //exit(6);
         }
         
         data_block_status_list=(DBS *)malloc(sizeof(DBS)*sb.no_of_data_blocks);
@@ -905,7 +954,7 @@ void fs_file_open()
         else
         {
             fprintf(stderr,"Problem with data block status list allocation in memory.\n");
-            exit(7);
+            //exit(7);
             
         }
             
@@ -920,8 +969,10 @@ void fs_file_open()
     else
     {
         fprintf(stderr,"Peoblem with filesystem file opening.\n");
-        exit(3);
+        //exit(3);
     }
+    if(fsfile)
+        fclose(fsfile);
 }
 
 
