@@ -18,7 +18,7 @@ typedef struct inode_struct
     time_t accessed;
     int lock;//0- unlocked 1-locked
     int reference_count; //0-no client is using
-    off_t data_block_offset[NO_OF_DATA_BLOCK_OFFSET_IN_INODE];
+    int data_block_offset[NO_OF_DATA_BLOCK_OFFSET_IN_INODE];
     
 } INODE;
 

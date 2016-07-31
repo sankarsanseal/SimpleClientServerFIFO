@@ -22,6 +22,7 @@ char path_to_server[PATHLENGTH];
 char path_to_client[PATHLENGTH];
 char present_working_dir[PATHLENGTH];
 char temp_present_working_dir[PATHLENGTH];
+char new_renamed_file_dir[PATHLENGTH];
 char path_to_new_dir[PATHLENGTH];
 struct stat testserver;
 struct stat testclient;
@@ -50,12 +51,50 @@ void initialize_empty_msg_to_cli()
     empty_msg_to_client.more=0;
 }
 
+void client_termination_msg()
+{
+    //SET the user id and echo the user id and root directory.
+    
+    if(serverfifo)
+    {
+        initialize_empty_msgsvr();
+        fprintf(stdout,"Enter the user id:");
+        scanf("%d%*c",&userid);
+        
+        
+        empty_msg_to_server.userid=userid;
+        empty_msg_to_server.client_pid=getpid();
+        empty_msg_to_server.instruct_code=99;
+        empty_msg_to_server.last_inode_used=1;
+//        strcpy(present_working_dir,"/");
+        strcpy(empty_msg_to_server.msg,present_working_dir);
+        write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
+//        read_msg_for_client();
+        
+    }
+    else
+        fprintf(stderr,"Message to server is not send.\n");
+    
+    
+    
+}
+
+
 void cleanup(int signaltype)
 {
-    close(serverfifo);
+
 
     close(dummy);
-    unlink(path_to_client);
+    if(stat(path_to_server,&testserver)!=0)
+    {
+        unlink(path_to_client);
+    }
+    else
+    {
+        fprintf(stdout,"Sending termination request to server...\n");
+        client_termination_msg();
+    }
+    close(serverfifo);
     fprintf(stdout,"Client %d is exiting...\n",getpid());
     exit(0);
 }
@@ -356,6 +395,185 @@ void remove_dir_cli()
 
 }
 
+void create_file_cli()
+{
+    if(serverfifo)
+    {
+        initialize_empty_msgsvr();
+        if(userid==0)
+            fprintf(stderr,"***Enter the userid first.\n");
+        else
+        {
+            
+            
+            printf("Enter the name of file which you like to create:\n");
+            scanf("%[^\n]%*c",path_to_new_dir);
+            
+            //sprintf(stdout,"%s\n",path_to_new_dir);
+            //sprintf(temp_present_working_dir,")
+            
+            strcpy(temp_present_working_dir, first_non_whitespace(path_to_new_dir));
+            
+            if(strcmp(temp_present_working_dir,".") && strcmp(temp_present_working_dir, ".."))
+            {
+                
+                empty_msg_to_server.userid=userid;
+                empty_msg_to_server.client_pid=getpid();
+                empty_msg_to_server.instruct_code=6;
+                empty_msg_to_server.last_inode_used=last_inode_used;
+                empty_msg_to_server.sub_instruction=0;
+                
+                
+                
+                //fprintf(stdout,"temp_present %s",temp_present_working_dir);
+                
+                
+                strcpy(empty_msg_to_server.msg,temp_present_working_dir);
+                
+                
+                
+                write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
+                read_msg_for_client();
+            }
+            else
+            {
+                fprintf(stderr,"***Can not create file . or ..\n");
+                
+            }
+        }
+        
+        
+    }
+    else
+    {
+        fprintf(stderr,"Message to server is not send.\n");
+        
+    }
+    
+}
+
+void delete_file_cli()
+{
+    if(serverfifo)
+    {
+        initialize_empty_msgsvr();
+        if(userid==0)
+            fprintf(stderr,"***Enter the userid first.\n");
+        else
+        {
+            
+            
+            printf("Enter the name of file which you like to delete:\n");
+            scanf("%[^\n]%*c",path_to_new_dir);
+            
+            //sprintf(stdout,"%s\n",path_to_new_dir);
+            //sprintf(temp_present_working_dir,")
+            
+            strcpy(temp_present_working_dir, first_non_whitespace(path_to_new_dir));
+            
+            if(strcmp(temp_present_working_dir,".") && strcmp(temp_present_working_dir, ".."))
+            {
+                
+                empty_msg_to_server.userid=userid;
+                empty_msg_to_server.client_pid=getpid();
+                empty_msg_to_server.instruct_code=7;
+                empty_msg_to_server.last_inode_used=last_inode_used;
+                empty_msg_to_server.sub_instruction=0;
+                
+                
+                
+                //fprintf(stdout,"temp_present %s",temp_present_working_dir);
+                
+                
+                strcpy(empty_msg_to_server.msg,temp_present_working_dir);
+                
+                
+                
+                write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
+                read_msg_for_client();
+            }
+            else
+            {
+                fprintf(stderr,"***Can not delete file . or ..\n");
+                
+            }
+        }
+        
+        
+    }
+    else
+    {
+        fprintf(stderr,"Message to server is not send.\n");
+        
+    }
+    
+}
+
+void rename_cli()
+{
+    if(serverfifo)
+    {
+        initialize_empty_msgsvr();
+        if(userid==0)
+            fprintf(stderr,"***Enter the userid first.\n");
+        else
+        {
+            
+            
+            printf("Enter the name of file/directory which you like to rename:\n");
+            scanf("%[^\n]%*c",path_to_new_dir);
+            
+            //sprintf(stdout,"%s\n",path_to_new_dir);
+            //sprintf(temp_present_working_dir,")
+            
+            strcpy(temp_present_working_dir, first_non_whitespace(path_to_new_dir));
+            
+            printf("Enter the name to which you like to rename:\n");
+            scanf("%[^\n]%*c",path_to_new_dir);
+            
+            strcpy(new_renamed_file_dir,first_non_whitespace(path_to_new_dir));
+            
+            if(strcmp(temp_present_working_dir,".") && strcmp(temp_present_working_dir, ".."))
+            {
+                
+                empty_msg_to_server.userid=userid;
+                empty_msg_to_server.client_pid=getpid();
+                empty_msg_to_server.instruct_code=8;
+                empty_msg_to_server.last_inode_used=last_inode_used;
+                empty_msg_to_server.sub_instruction=0;
+                
+                
+                
+                //fprintf(stdout,"temp_present %s",temp_present_working_dir);
+                
+                
+                strcpy(empty_msg_to_server.msg,temp_present_working_dir);
+                strcat(empty_msg_to_server.msg,"#");
+                strcat(empty_msg_to_server.msg,new_renamed_file_dir);
+                
+                
+                
+                write(serverfifo,&empty_msg_to_server,sizeof(empty_msg_to_server));
+                read_msg_for_client();
+            }
+            else
+            {
+                fprintf(stderr,"***Can not delete file . or ..\n");
+                
+            }
+        }
+        
+        
+    }
+    else
+    {
+        fprintf(stderr,"Message to server is not send.\n");
+        
+    }
+    
+}
+
+
 
 void menu()
 {
@@ -378,6 +596,9 @@ void menu()
             fprintf(stdout,"3.Change directory.\n");
             fprintf(stdout,"4.Make Directory.\n");
             fprintf(stdout,"5.Remove Directory.\n");
+            fprintf(stdout,"6.Create File.\n");
+            fprintf(stdout,"7.Delete File.\n");
+            fprintf(stdout,"8.Rename File or Directory.\n");
             fprintf(stdout,"0.Exit\n");
             fprintf(stdout,"Enter your choice:");
             scanf("%d%*c",&c);
@@ -397,6 +618,15 @@ void menu()
                     break;
                 case 5:
                     remove_dir_cli();
+                    break;
+                case 6:
+                    create_file_cli();
+                    break;
+                case 7:
+                    delete_file_cli();
+                    break;
+                case 8:
+                    rename_cli();
                     break;
                     
                 case 0:
