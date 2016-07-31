@@ -148,26 +148,22 @@ DIRENTRY * initialize_dir_pos()
     return temp;
 }
 
-DIRENTRY * search_name(FILE * file, int inode_ind, char * str, int locktype)
+DIRENTRY * search_name(FILE * file, int inode_ind, char * str)
 {
     int i,j,flag=0;
 
     DIRS * temp;
     DIRENTRY * pos=NULL;
-    pthread_rwlock_rdlock(&inode_list_lock);
-    if(locktype==1)
-        pthread_rwlock_rdlock(&data_block_status_list_lock);
-    else if (locktype==2)
-        pthread_rwlock_wrlock(&data_block_status_list_lock);
+    //pthread_rwlock_rdlock(&inode_list_lock);
     
 
     if(inode_list[inode_ind].lock==0)
     {
         for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
         {
-            if(inode_list[inode_ind].data_block_offset[i]!=0)
+            if(inode_list[inode_ind].data_block_offset[i]!=-1)
             {
-                fseek(file,inode_list[inode_ind].data_block_offset[i],SEEK_SET);
+                fseek(file,data_block_status_list[ inode_list[inode_ind].data_block_offset[i]].data_block_offset,SEEK_SET);
                 for(j=0;j<sb.no_of_inode;j++)
                 {
                     if((temp=initialize_dir_entry()))
@@ -228,8 +224,8 @@ int next_free_inode()
 {
     int temp=0;
     int i;
-    pthread_rwlock_wrlock(&sb_lock);
-    pthread_rwlock_wrlock(&inode_list_lock);
+   // pthread_rwlock_wrlock(&sb_lock);
+   // pthread_rwlock_wrlock(&inode_list_lock);
     if(sb.remembered_inode!=0)
     temp=sb.remembered_inode;
     for(i=sb.remembered_inode+1;i<sb.no_of_inode;i++)
@@ -244,8 +240,8 @@ int next_free_inode()
             else
                 continue;
     }
-    pthread_rwlock_unlock(&inode_list_lock);
-    pthread_rwlock_unlock(&sb_lock);
+   // pthread_rwlock_unlock(&inode_list_lock);
+   // pthread_rwlock_unlock(&sb_lock);
     
     return temp;
     
@@ -255,8 +251,8 @@ int next_free_data_block()
 {
     int temp=-1;
     int i;
-    pthread_rwlock_wrlock(&sb_lock);
-    pthread_rwlock_wrlock(&data_block_status_list_lock);
+   // pthread_rwlock_wrlock(&sb_lock);
+   // pthread_rwlock_wrlock(&data_block_status_list_lock);
     
     if(sb.remembered_data_block!=-1)
     {
@@ -277,8 +273,8 @@ int next_free_data_block()
     }
     if(i==sb.no_of_data_blocks)
         sb.remembered_data_block=-1;
-    pthread_rwlock_unlock(&data_block_status_list_lock);
-    pthread_rwlock_unlock(&sb_lock);
+   // pthread_rwlock_unlock(&data_block_status_list_lock);
+   // pthread_rwlock_unlock(&sb_lock);
     
     return temp;
 }
@@ -288,7 +284,7 @@ void dir_struct_creation(FILE * file,int inode_ind,int parent_inode_ind, int isr
 {
     int i,j;
     DIRS * temp;
-    pthread_rwlock_rdlock(&inode_list_lock);
+   // pthread_rwlock_rdlock(&inode_list_lock);
 
     if(inode_list[inode_ind].lock==1)
         fprintf(stderr,"Inode is locked. Please try after some time.\n");
@@ -296,9 +292,10 @@ void dir_struct_creation(FILE * file,int inode_ind,int parent_inode_ind, int isr
     {
         for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
         {
-            if(inode_list[inode_ind].data_block_offset[i]!=0)
+            if(inode_list[inode_ind].data_block_offset[i]!=-1)
             {
-                fseek(file,data_block_status_list[inode_list[inode_ind].data_block_offset[i]],SEEK_SET);
+                fseek(file,data_block_status_list[inode_list[inode_ind].data_block_offset[i]].data_block_offset,SEEK_SET);
+                //fprintf(stdout,"inode %d Ftell root : %lld\n",inode_list[inode_ind].data_block_offset[i],ftello(file));
                 for(j=0;j<sb.no_of_directory_entry;j++)
                 {
                     if((temp=initialize_dir_entry()))
@@ -354,13 +351,13 @@ void dir_struct_creation(FILE * file,int inode_ind,int parent_inode_ind, int isr
                 
         }
     }
-    pthread_rwlock_unlock(&inode_list_lock);
+   // pthread_rwlock_unlock(&inode_list_lock);
 }
 
 void dir_data_block_allocation(int inode_ind,int type)
 {
     int i;
-    pthread_rwlock_wrlock(&inode_list_lock);
+   // pthread_rwlock_wrlock(&inode_list_lock);
     inode_list[inode_ind].lock=1;
     inode_list[inode_ind].type=type;
 
@@ -380,7 +377,7 @@ void dir_data_block_allocation(int inode_ind,int type)
         }
     }
     inode_list[inode_ind].lock=0;
-    pthread_rwlock_unlock(&inode_list_lock);
+    //pthread_rwlock_unlock(&inode_list_lock);
 }
 
 void dir_data_block_release(int inode_ind)
@@ -392,7 +389,7 @@ void dir_data_block_release(int inode_ind)
     
         if(inode_list[inode_ind].data_block_offset[i]!=0)
         {
-        data_block_ind=(int)( inode_list[inode_ind].data_block_offset[i]-sizeof(SB)-sizeof(INODE)*sb.no_of_inode-sizeof(DBS)*sb.no_of_data_blocks)/sb.blocksize;
+            data_block_ind=inode_list[inode_ind].data_block_offset[i];
         //fprintf(stdout,"Data_Block ind : %d and sb.remembered data %d :\n",data_block_ind,sb.remembered_data_block);
             data_block_status_list[data_block_ind].lock=1;
             data_block_status_list[data_block_ind].empty=1;
@@ -409,13 +406,13 @@ DIRENTRY * find_next_free_dir_entry_slot(FILE * file, int inode_ind)
     int i,j,flag=0;
     DIRS * temp;
     DIRENTRY * pos=NULL;
-    pthread_rwlock_wrlock(&inode_list_lock);
+    //pthread_rwlock_wrlock(&inode_list_lock);
     
     //inode_list[inode_ind].lock=1;
 
     for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
     {
-        fseek(file,inode_list[inode_ind].data_block_offset[i],SEEK_SET);
+        fseek(file,data_block_status_list[inode_list[inode_ind].data_block_offset[i]].data_block_offset,SEEK_SET);
         for(j=0;j<sb.no_of_directory_entry;j++)
         {
             if((temp=initialize_dir_entry()))
@@ -446,7 +443,7 @@ DIRENTRY * find_next_free_dir_entry_slot(FILE * file, int inode_ind)
             break;
 
     }
-    pthread_rwlock_unlock(&inode_list_lock);
+    //pthread_rwlock_unlock(&inode_list_lock);
     
     return pos;
     
@@ -530,6 +527,10 @@ void * present_wd_ls(void * argv)
     DIRS * tempdir;
     struct stat exist;
     
+    pthread_rwlock_rdlock(&sb_lock);
+    pthread_rwlock_rdlock(&inode_list_lock);
+    pthread_rwlock_rdlock(&data_block_status_list_lock);
+    
     file=fopen(path_to_fsfile,"rb");
 
     if(file)
@@ -569,13 +570,13 @@ void * present_wd_ls(void * argv)
                     inode_ind=temp->last_inode_used;
                     
                     //Read lock started here for inode list
-                    pthread_rwlock_rdlock(&inode_list_lock);
+                    //pthread_rwlock_rdlock(&inode_list_lock);
                     
                     for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
                     {
-                        if(inode_list[inode_ind].data_block_offset[i]!=0)
+                        if(inode_list[inode_ind].data_block_offset[i]!=-1)
                         {
-                            fseek(file, inode_list[inode_ind].data_block_offset[i], SEEK_SET);
+                            fseek(file,data_block_status_list[inode_list[inode_ind].data_block_offset[i]].data_block_offset, SEEK_SET);
                             
                             for(j=0;j<sb.no_of_directory_entry;j++)
                             {
@@ -626,7 +627,7 @@ void * present_wd_ls(void * argv)
                                 write(cli_fifo, empty_msg_from_svr_to_cli,sizeof(MSGCLI));
                             free(empty_msg_from_svr_to_cli);
                             }
-                    pthread_rwlock_unlock(&inode_list_lock);
+                    //pthread_rwlock_unlock(&inode_list_lock);
                     
                     
                 }
@@ -648,6 +649,9 @@ void * present_wd_ls(void * argv)
         fclose(file);
     
 
+    pthread_rwlock_unlock(&data_block_status_list_lock);
+    pthread_rwlock_unlock(&inode_list_lock);
+    pthread_rwlock_unlock(&sb_lock);
     return NULL;
     
 }
@@ -662,6 +666,10 @@ void * change_dir(void * argv)
     FILE * file;
     struct stat exist;
     
+    pthread_rwlock_rdlock(&sb_lock);
+    pthread_rwlock_rdlock(&inode_list_lock);
+    pthread_rwlock_rdlock(&data_block_status_list_lock);
+
 
     file=fopen(path_to_fsfile,"rb");
     
@@ -689,7 +697,7 @@ void * change_dir(void * argv)
                 {
                     fprintf(stdout,"Temp msg at change dir %s\n",temp->msg);
                     
-                    pos=search_name(file, temp->last_inode_used, temp->msg,1);
+                    pos=search_name(file, temp->last_inode_used, temp->msg);
                     
                     if(pos)
                     {
@@ -712,8 +720,8 @@ void * change_dir(void * argv)
                         
                         
                         free(pos);
-                        pthread_rwlock_unlock(&data_block_status_list_lock);
-                        pthread_rwlock_unlock(&inode_list_lock);
+                        //pthread_rwlock_unlock(&data_block_status_list_lock);
+                        //pthread_rwlock_unlock(&inode_list_lock);
                     }
                     else
                     {
@@ -742,6 +750,11 @@ void * change_dir(void * argv)
     
     if(file)
         fclose(file);
+    
+    pthread_rwlock_unlock(&data_block_status_list_lock);
+    pthread_rwlock_unlock(&inode_list_lock);
+    pthread_rwlock_unlock(&sb_lock);
+
     return NULL;
     
 }
@@ -763,6 +776,11 @@ void * make_dir(void * args)
     
     empty_str[0]='\0';
     
+    pthread_rwlock_wrlock(&sb_lock);
+    pthread_rwlock_wrlock(&inode_list_lock);
+    pthread_rwlock_wrlock(&data_block_status_list_lock);
+
+    
     file=fopen(path_to_fsfile,"rb+");
     
     if(file)
@@ -778,7 +796,7 @@ void * make_dir(void * args)
             
             {
 
-                pos=search_name(file, temp->last_inode_used, temp->msg, 2);
+                pos=search_name(file, temp->last_inode_used, temp->msg);
 
                     if(pos&&pos->inode_ind)
                     {
@@ -809,7 +827,7 @@ void * make_dir(void * args)
                         if((pos=search_name(file, temp->last_inode_used, empty_str)))
                         {
                             fprintf(stdout,"pos i:%d j:%d\n",pos->i,pos->j);
-                            fseek(file,inode_list[temp->last_inode_used].data_block_offset[pos->i]+sizeof(DIRS)*pos->j,SEEK_SET);
+                            fseek(file,data_block_status_list[ inode_list[temp->last_inode_used].data_block_offset[pos->i]].data_block_offset+sizeof(DIRS)*pos->j,SEEK_SET);
                             if((empty_entry=initialize_dir_entry()))
                             {
                                 if((empty_entry->inode=next_free_inode()))
@@ -852,7 +870,7 @@ void * make_dir(void * args)
                                 fprintf(stderr,"Error in allocating directry entry.\n");
                             }
                             free(pos);
-                            pthread_rwlock_unlock(&inode_list_lock);
+                            //pthread_rwlock_unlock(&inode_list_lock);
                         }
                         else
                         {
@@ -860,7 +878,7 @@ void * make_dir(void * args)
                         }
                     
                     }
-                pthread_rwlock_unlock(&inode_list_lock);
+                //pthread_rwlock_unlock(&inode_list_lock);
 
                 close(cli_fifo);
             }
@@ -872,6 +890,11 @@ void * make_dir(void * args)
     
     if(file)
         fclose(file);
+    
+    pthread_rwlock_unlock(&data_block_status_list_lock);
+    pthread_rwlock_unlock(&inode_list_lock);
+    pthread_rwlock_unlock(&sb_lock);
+
     return NULL;
 
     
@@ -889,6 +912,10 @@ void * remove_dir(void * args)
 
     DIRENTRY * pos;
     DIRS * empty_entry;
+    
+    pthread_rwlock_wrlock(&sb_lock);
+    pthread_rwlock_wrlock(&inode_list_lock);
+    pthread_rwlock_wrlock(&data_block_status_list_lock);
     
     file=fopen(path_to_fsfile,"rb+");
     
@@ -912,7 +939,7 @@ void * remove_dir(void * args)
                     fprintf(stdout,"Inode ind %d\n",pos->inode_ind);
                     if((inode_list[pos->inode_ind].type==1)&&(inode_list[pos->inode_ind].reference_count==2))
                     {
-                        fseek(file, inode_list[temp->last_inode_used].data_block_offset[pos->i]+sizeof(DIRS)*pos->j, SEEK_SET);
+                        fseek(file,data_block_status_list[ inode_list[temp->last_inode_used].data_block_offset[pos->i]].data_block_offset + sizeof(DIRS)*pos->j, SEEK_SET);
                         if((empty_entry=initialize_dir_entry()))
                         {
                             fwrite(empty_entry, sizeof(DIRS), 1, file);
@@ -1000,6 +1027,11 @@ void * remove_dir(void * args)
     
     if(file)
         fclose(file);
+    
+    pthread_rwlock_unlock(&data_block_status_list_lock);
+    pthread_rwlock_unlock(&inode_list_lock);
+    pthread_rwlock_unlock(&sb_lock);
+
     return NULL;
     
     
@@ -1021,6 +1053,11 @@ void * create_file(void * args)
     DIRS * empty_entry;
     
     empty_str[0]='\0';
+    
+    pthread_rwlock_wrlock(&sb_lock);
+    pthread_rwlock_wrlock(&inode_list_lock);
+    pthread_rwlock_wrlock(&data_block_status_list_lock);
+
     
     file=fopen(path_to_fsfile,"rb+");
     
@@ -1068,7 +1105,7 @@ void * create_file(void * args)
                     if((pos=search_name(file, temp->last_inode_used, empty_str)))
                     {
                         fprintf(stdout,"pos i:%d j:%d\n",pos->i,pos->j);
-                        fseek(file,inode_list[temp->last_inode_used].data_block_offset[pos->i]+sizeof(DIRS)*pos->j,SEEK_SET);
+                        fseek(file,data_block_status_list[ inode_list[temp->last_inode_used].data_block_offset[pos->i]].data_block_offset+sizeof(DIRS)*pos->j,SEEK_SET);
                         if((empty_entry=initialize_dir_entry()))
                         {
                             if((empty_entry->inode=next_free_inode()))
@@ -1130,6 +1167,11 @@ void * create_file(void * args)
     
     if(file)
         fclose(file);
+    
+    pthread_rwlock_unlock(&data_block_status_list_lock);
+    pthread_rwlock_unlock(&inode_list_lock);
+    pthread_rwlock_unlock(&sb_lock);
+
     return NULL;
     
     
@@ -1147,6 +1189,11 @@ void * delete_file(void * args)
     
     DIRENTRY * pos;
     DIRS * empty_entry;
+    
+    pthread_rwlock_wrlock(&sb_lock);
+    pthread_rwlock_wrlock(&inode_list_lock);
+    pthread_rwlock_wrlock(&data_block_status_list_lock);
+
     
     file=fopen(path_to_fsfile,"rb+");
     
@@ -1170,7 +1217,7 @@ void * delete_file(void * args)
                     fprintf(stdout,"Inode ind %d\n",pos->inode_ind);
                     if(inode_list[pos->inode_ind].type==2)
                     {
-                        fseek(file, inode_list[temp->last_inode_used].data_block_offset[pos->i]+sizeof(DIRS)*pos->j, SEEK_SET);
+                        fseek(file, data_block_status_list[ inode_list[temp->last_inode_used].data_block_offset[pos->i]].data_block_offset+sizeof(DIRS)*pos->j, SEEK_SET);
                         if((empty_entry=initialize_dir_entry()))
                         {
                             fwrite(empty_entry, sizeof(DIRS), 1, file);
@@ -1258,6 +1305,11 @@ void * delete_file(void * args)
     
     if(file)
         fclose(file);
+    
+    pthread_rwlock_unlock(&data_block_status_list_lock);
+    pthread_rwlock_unlock(&inode_list_lock);
+    pthread_rwlock_unlock(&sb_lock);
+    
     return NULL;
     
     
@@ -1278,6 +1330,11 @@ void * rename_file_dir(void * args)
     
     DIRENTRY * pos;
     DIRS * empty_entry;
+    
+    pthread_rwlock_wrlock(&sb_lock);
+    pthread_rwlock_wrlock(&inode_list_lock);
+    pthread_rwlock_wrlock(&data_block_status_list_lock);
+
     
     file=fopen(path_to_fsfile,"rb+");
     
@@ -1304,7 +1361,7 @@ void * rename_file_dir(void * args)
                 {
                     fprintf(stdout,"Inode ind %d\n",pos->inode_ind);
                     
-                        fseek(file, inode_list[temp->last_inode_used].data_block_offset[pos->i]+sizeof(DIRS)*pos->j, SEEK_SET);
+                        fseek(file,data_block_status_list[ inode_list[temp->last_inode_used].data_block_offset[pos->i]].data_block_offset+sizeof(DIRS)*pos->j, SEEK_SET);
                         if((empty_entry=initialize_dir_entry()))
                         {
                             empty_entry->inode=pos->inode_ind;
@@ -1370,6 +1427,11 @@ void * rename_file_dir(void * args)
     
     if(file)
         fclose(file);
+    
+    pthread_rwlock_unlock(&data_block_status_list_lock);
+    pthread_rwlock_unlock(&inode_list_lock);
+    pthread_rwlock_unlock(&sb_lock);
+
     return NULL;
     
     
@@ -1489,11 +1551,12 @@ void fs_file_creation()
         inode_list=(INODE *)malloc(sizeof(INODE)*no_of_inodes);
         if(inode_list)
         {
+            fprintf(stdout,"Size of Super block : %lu\n",sizeof(SB));
             fprintf(stdout,"Size of empty inode : %lu\n",sizeof(empty_inode));
             empty_inode.accessed=0;
             empty_inode.created=0;
             for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
-                empty_inode.data_block_offset[i]=0;
+                empty_inode.data_block_offset[i]=-1;
             empty_inode.lock=0;
             empty_inode.modified=0;
             empty_inode.type=0;
@@ -1550,7 +1613,7 @@ void fs_file_creation()
 void root_inode_creation()
 {
     int i/*,j*/;
-//    DIRS * temp;
+   // DIRS * temp;
     inode_list[1].lock=1;
     inode_list[1].created=time(NULL);
     inode_list[1].accessed=time(NULL);
@@ -1580,7 +1643,8 @@ void root_inode_creation()
     dir_struct_creation(fsfile,1,1,1);
 /*    for(i=0;i<NO_OF_DATA_BLOCK_OFFSET_IN_INODE;i++)
     {
-        fseek(fsfile,inode_list[1].data_block_offset[i],SEEK_SET);
+        fprintf(stdout,"Inode data off set %d and data block %lld \n",inode_list[1].data_block_offset[i],data_block_status_list[inode_list[1].data_block_offset[i]].data_block_offset);
+        fseek(fsfile,data_block_status_list[ inode_list[1].data_block_offset[i]].data_block_offset,SEEK_SET);
         for(j=0;j<sb.no_of_directory_entry;j++)
         if((temp=initialize_dir_entry()))
         {
@@ -1591,7 +1655,7 @@ void root_inode_creation()
         }
         
     }
-  */
+ */
     
 }
 void fs_file_open()
