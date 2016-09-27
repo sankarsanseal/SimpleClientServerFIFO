@@ -58,8 +58,8 @@ void client_termination_msg()
     if(serverfifo)
     {
         initialize_empty_msgsvr();
-        fprintf(stdout,"Enter the user id:");
-        scanf("%d%*c",&userid);
+        //fprintf(stdout,"Enter the user id:");
+        //scanf("%d%*c",&userid);
         
         
         empty_msg_to_server.userid=userid;

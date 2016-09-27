@@ -1329,6 +1329,7 @@ void * rename_file_dir(void * args)
     FILE * file;
     
     DIRENTRY * pos;
+    DIRENTRY * pos1;
     DIRS * empty_entry;
     
     pthread_rwlock_wrlock(&sb_lock);
@@ -1356,8 +1357,9 @@ void * rename_file_dir(void * args)
                 fprintf(stdout,"Present name %s and New name %s\n", present_name,new_name);
                 
                 pos=search_name(file, temp->last_inode_used, present_name);
+                pos1=search_name(file, temp->last_inode_used, new_name);
                 
-                if(pos&&pos->inode_ind)
+                if(pos&&pos->inode_ind&&!pos1)
                 {
                     fprintf(stdout,"Inode ind %d\n",pos->inode_ind);
                     
@@ -1397,7 +1399,8 @@ void * rename_file_dir(void * args)
                 }
                 else
                 {
-                    if((empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                    if(!pos1&&
+                       (empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
                     {
                         empty_msg_from_svr_to_cli->error_code=1;
                         empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
@@ -1407,6 +1410,21 @@ void * rename_file_dir(void * args)
                         
                         if(stat(path_to_cli_fifo,&exist)==0)
                         write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
+                        
+                        free(empty_msg_from_svr_to_cli);
+                        
+                    }
+                    else if(pos1&&
+                       (empty_msg_from_svr_to_cli=initialize_empty_msg_to_cli()))
+                    {
+                        empty_msg_from_svr_to_cli->error_code=1;
+                        empty_msg_from_svr_to_cli->last_inode_used=temp->last_inode_used;
+                        empty_msg_from_svr_to_cli->more=0;
+                        sprintf(empty_msg_from_svr_to_cli->msg,"Provided new file/directory %s is  already present.\n",temp->msg);
+                        empty_msg_from_svr_to_cli->ischangedirinst=0;
+                        
+                        if(stat(path_to_cli_fifo,&exist)==0)
+                            write(cli_fifo,empty_msg_from_svr_to_cli,sizeof(MSGCLI));
                         
                         free(empty_msg_from_svr_to_cli);
                         
